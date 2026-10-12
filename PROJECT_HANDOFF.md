@@ -152,6 +152,9 @@ links the advisor categories and explains the intentional security model.
 
 ## Android Phase 2 requirements
 
+The implementation-ready [Android Phase 2 design](docs/PHASE2_ANDROID_DESIGN.md)
+is documentation only; Android code has not been changed.
+
 Design and implement a transactional local journal, typed new-contract RPC client,
 one active worker, durable dispatch guard, callback persistence before reporting,
 immutable retry payloads, acknowledgment validation, and restart reconciliation.
