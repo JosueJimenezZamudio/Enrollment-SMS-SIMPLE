@@ -1,7 +1,8 @@
 # Phase 1: database send-attempt protocol
 
-This phase implements the database half only. **The current Android application
-is intentionally incompatible with these mutations.** Do not enable an old
+Phase 1 implemented the database half only. **Legacy Android applications are
+incompatible with these mutations.** Phase 2 now provides the matching client;
+see [Android validation](PHASE2_ANDROID_IMPLEMENTATION.md). Do not enable an old
 Android gateway against this schema. No Edge Function or Apps Script change is
 needed for queue insertion. `device_heartbeat` and device provisioning retain
 their signatures.

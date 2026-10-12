@@ -1,158 +1,148 @@
 package com.enrollmentdesk.enrollmentsms;
 
 import android.os.Build;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import org.json.JSONObject;
 
-final class SupabaseGatewayClient {
-    static final String APP_VERSION = "1.0.0";
+class SupabaseGatewayClient {
+  static final String APP_VERSION = "2.0.0";
+  final GatewayConfig config;
 
-    private final GatewayConfig config;
+  SupabaseGatewayClient(GatewayConfig config) {
+    this.config = config;
+  }
 
-    SupabaseGatewayClient(GatewayConfig config) {
-        this.config = config;
+  static final class RpcError extends IOException {
+    final String code;
+    final int status;
+    final boolean retryable;
+    final long retryAfterMs;
+
+    RpcError(int status, String code, long retryAfterMs) {
+      super("RPC HTTP " + status + " / " + code);
+      this.status = status;
+      this.code = code;
+      this.retryable = status == 429 || status >= 500;
+      this.retryAfterMs = retryAfterMs;
     }
+  }
 
-    void heartbeat() throws IOException, JSONException {
-        JSONObject body = withDeviceToken()
+  static boolean authorizationError(RpcError e) {
+    return e.status == 401 || e.status == 403 || e.code.equals("P0001") || e.code.equals("42501");
+  }
+
+  String heartbeat() throws Exception {
+    JSONObject result =
+        rpc(
+            "device_heartbeat",
+            new JSONObject()
                 .put("p_app_version", APP_VERSION)
                 .put("p_android_version", String.valueOf(Build.VERSION.SDK_INT))
                 .put("p_manufacturer", Build.MANUFACTURER)
                 .put("p_model", Build.MODEL)
-                .put("p_metadata", new JSONObject());
-        postRpcObject("device_heartbeat", body);
-    }
+                .put("p_metadata", new JSONObject()));
+    return RpcReceipt.uuid(result, "id");
+  }
 
-    List<OutboxMessage> claimQueue(int limit) throws IOException, JSONException {
-        JSONArray rows = postRpcArray(
-                "device_claim_sms_queue",
-                withDeviceToken().put("p_limit", limit)
-        );
-        List<OutboxMessage> messages = new ArrayList<>();
-        for (int i = 0; i < rows.length(); i++) {
-            JSONObject row = rows.getJSONObject(i);
-            messages.add(new OutboxMessage(
-                    row.optString("id"),
-                    row.optString("to_phone"),
-                    row.optString("body"),
-                    row.optJSONObject("metadata")
-            ));
-        }
-        return messages;
+  JSONObject claim(String requestId) throws Exception {
+    JSONObject result =
+        rpc("device_claim_sms_queue", new JSONObject().put("p_claim_request_id", requestId));
+    if (!RpcReceipt.uuid(result, "claim_request_id").equals(requestId))
+      throw new IllegalArgumentException("Claim identity mismatch");
+    String kind = result.getString("result");
+    if (kind.equals("empty") || kind.equals("busy")) {
+      if (!result.has("attempt_id")) throw new IllegalArgumentException("Missing claim identity");
+      if (!result.isNull("attempt_id")) RpcReceipt.uuid(result, "attempt_id");
+      if (kind.equals("empty") && !result.isNull("attempt_id"))
+        throw new IllegalArgumentException("Invalid empty claim");
+    } else {
+      RpcReceipt receipt = new RpcReceipt(result);
+      if (!kind.equals(receipt.state)) throw new IllegalArgumentException("Claim state mismatch");
+      if (kind.equals("claimed")) {
+        JSONObject message = result.getJSONObject("message");
+        if (!RpcReceipt.uuid(message, "id").equals(receipt.queueId)
+            || message.getString("body").isEmpty()
+            || message.getString("to_phone").isEmpty())
+          throw new IllegalArgumentException("Invalid claim payload");
+        message.getJSONObject("metadata");
+      } else if (!result.has("message") || !result.isNull("message"))
+        throw new IllegalArgumentException("Unexpected claim payload");
     }
+    return result;
+  }
 
-    void markSent(String queueId, String smsMessageId, JSONObject metadata) throws IOException, JSONException {
-        JSONObject report = copyMetadata(metadata)
-                .put("app_version", APP_VERSION)
-                .put("android_sdk", Build.VERSION.SDK_INT)
-                .put("reported_at", Instant.now().toString());
-        postRpcObject(
-                "device_mark_sms_sent",
-                withDeviceToken()
-                        .put("p_queue_id", queueId)
-                        .put("p_sms_message_id", smsMessageId)
-                        .put("p_metadata", report)
-        );
-    }
+  RpcReceipt begin(String attemptId) throws Exception {
+    return new RpcReceipt(
+        rpc("device_begin_sms_attempt", new JSONObject().put("p_attempt_id", attemptId)));
+  }
 
-    void markFailed(String queueId, String error, JSONObject metadata) throws IOException, JSONException {
-        JSONObject report = copyMetadata(metadata)
-                .put("app_version", APP_VERSION)
-                .put("android_sdk", Build.VERSION.SDK_INT)
-                .put("reported_at", Instant.now().toString());
-        postRpcObject(
-                "device_mark_sms_failed",
-                withDeviceToken()
-                        .put("p_queue_id", queueId)
-                        .put("p_error", error)
-                        .put("p_metadata", report)
-        );
-    }
+  RpcReceipt report(String kind, String frozenPayload) throws Exception {
+    JSONObject payload = new JSONObject(frozenPayload);
+    RpcReceipt receipt = new RpcReceipt(rpc("device_mark_sms_" + kind, payload));
+    receipt.acknowledge(payload, kind);
+    return receipt;
+  }
 
-    private JSONObject copyMetadata(JSONObject source) throws JSONException {
-        JSONObject copy = new JSONObject();
-        if (source == null) return copy;
-        JSONArray names = source.names();
-        if (names == null) return copy;
-        for (int i = 0; i < names.length(); i++) {
-            String name = names.getString(i);
-            copy.put(name, source.opt(name));
-        }
-        return copy;
-    }
-
-    private JSONObject withDeviceToken() throws JSONException {
-        return new JSONObject().put("p_device_token", config.deviceToken);
-    }
-
-    private JSONObject postRpcObject(String functionName, JSONObject body) throws IOException, JSONException {
-        String response = postRpc(functionName, body);
-        if (response == null || response.trim().isEmpty() || "null".equals(response.trim())) return new JSONObject();
-        return new JSONObject(response);
-    }
-
-    private JSONArray postRpcArray(String functionName, JSONObject body) throws IOException {
-        String response = postRpc(functionName, body);
-        if (response == null || response.trim().isEmpty()) return new JSONArray();
+  JSONObject rpc(String name, JSONObject parameters) throws Exception {
+    if (!config.isReady()) throw new IllegalArgumentException("Invalid configuration");
+    JSONObject body =
+        new JSONObject(parameters.toString()).put("p_device_token", config.deviceToken);
+    HttpURLConnection c =
+        (HttpURLConnection) new URL(config.supabaseUrl + "/rest/v1/rpc/" + name).openConnection();
+    try {
+      c.setInstanceFollowRedirects(false);
+      c.setRequestMethod("POST");
+      c.setConnectTimeout(15000);
+      c.setReadTimeout(15000);
+      c.setDoOutput(true);
+      c.setRequestProperty("apikey", config.apiKey);
+      c.setRequestProperty("Content-Type", "application/json");
+      c.setRequestProperty("Accept", "application/json");
+      byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+      c.setFixedLengthStreamingMode(bytes.length);
+      try (OutputStream stream = c.getOutputStream()) {
+        stream.write(bytes);
+      }
+      int status = c.getResponseCode();
+      String response =
+          read(
+              c.getResponseCode() >= 200 && status < 300 ? c.getInputStream() : c.getErrorStream());
+      if (status < 200 || status >= 300) {
+        String code = "HTTP";
         try {
-            return new JSONArray(response);
-        } catch (JSONException error) {
-            throw new IOException("Invalid JSON from Supabase: " + response, error);
+          code = new JSONObject(response).optString("code", "HTTP");
+        } catch (Exception ignored) {
         }
+        // Never display backend message/details, which can contain contact data.
+        if (!code.matches("[A-Za-z0-9_]{1,32}")) code = "HTTP";
+        long delay = 0;
+        try {
+          delay =
+              Math.min(86400, Math.max(0, Long.parseLong(c.getHeaderField("Retry-After")))) * 1000L;
+        } catch (Exception ignored) {
+        }
+        throw new RpcError(status, code, delay);
+      }
+      return new JSONObject(response);
+    } finally {
+      c.disconnect();
     }
+  }
 
-    private String postRpc(String functionName, JSONObject body) throws IOException {
-        if (!config.isReady()) throw new IOException("Missing Supabase configuration.");
-
-        URL url = new URL(config.supabaseUrl + "/rest/v1/rpc/" + functionName);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(30000);
-        connection.setDoOutput(true);
-        connection.setRequestProperty("apikey", config.apiKey);
-        connection.setRequestProperty("Content-Type", "application/json");
-        connection.setRequestProperty("Accept", "application/json");
-
-        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
-        connection.setFixedLengthStreamingMode(bytes.length);
-        try (OutputStream output = connection.getOutputStream()) {
-            output.write(bytes);
-        }
-
-        int status = connection.getResponseCode();
-        String response = readAll(status >= 200 && status < 300
-                ? connection.getInputStream()
-                : connection.getErrorStream());
-        connection.disconnect();
-
-        if (status < 200 || status >= 300) {
-            throw new IOException("Supabase RPC failed (" + status + "): " + response);
-        }
-        return response;
+  private static String read(InputStream stream) throws IOException {
+    if (stream == null) return "";
+    try (InputStream in = stream;
+        ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+      byte[] b = new byte[4096];
+      int n;
+      while ((n = in.read(b)) != -1) {
+        if (out.size() + n > 131072) throw new IOException("RPC response too large");
+        out.write(b, 0, n);
+      }
+      return out.toString("UTF-8");
     }
-
-    private static String readAll(InputStream input) throws IOException {
-        if (input == null) return "";
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) builder.append(line);
-        }
-        return builder.toString();
-    }
+  }
 }

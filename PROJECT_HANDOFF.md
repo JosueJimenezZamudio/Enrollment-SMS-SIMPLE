@@ -1,6 +1,6 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-11 after Phase 1 database implementation and verification.
+Updated 2026-10-11 after Phase 2 Android implementation and local validation.
 
 ## Current status
 
@@ -8,13 +8,17 @@ Phase 1 is implemented: the dedicated Supabase database has the forward
 migrations, explicit send attempts, one-message claims, authorization fencing,
 unknown-outcome quarantine, and idempotent terminal RPCs.
 
-**The Android source is still the original client and is incompatible with the
-new mutation signatures. Keep every legacy gateway stopped.** Android Phase 2
-must implement the durable journal and one-submit protocol before any physical
-send. No Apps Script or Sheet integration changes have been made.
+Android Phase 2 is implemented on `reliability-phase-2`, based on
+`reliability-phase-1` at `b3f500e4ff4c93729309cdac35205a31874044e6`.
+It uses the new RPC contract, durable SQLite outcomes, one-submit dispatch,
+restart reconciliation and bounded foreground sessions. Keep every legacy
+gateway stopped. No Apps Script, Sheet integration, Edge Function, or database
+protocol changes have been made in Phase 2. Nothing has been merged.
 
-The system is not yet verified end to end. Successful database tests do not mean
-an APK was built, a phone was configured, or an SMS was sent.
+The debug APK builds, local fake-transport tests pass, and lint has no errors.
+No device was attached, no APK was installed, and no real SMS was sent. Physical
+transport and end-to-end behavior remain unverified. See the
+[implementation/validation record](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
 
 ## Dedicated infrastructure
 
@@ -143,28 +147,39 @@ Run instructions: [supabase/tests/README.md](supabase/tests/README.md).
   DEFINER RPC access and default-deny RLS tables without client policies.
   Missing foreign-key indexes were fixed; unused-index information on a fresh
   database is not a reason to remove required indexes.
-- Android source, Apps Script, and Edge Function source were not changed. The
-  earlier Android build attempt was blocked by a missing local Android SDK.
-  No physical-device SMS behavior has been verified.
+- The preceding evidence is from Phase 1; no database mutation was needed for Phase 2.
+- Phase 2 Android: debug APK build, 78 Robolectric executions (36 reliability
+  cases on API 26 and 35, plus six lifecycle/configuration cases on API 35),
+  and Android lint passed. Remaining lint warnings are documented in the
+  implementation record. No physical-device SMS behavior has been verified.
 
 The [contract guide](docs/PHASE1_RELIABILITY.md#security-and-advisor-findings)
 links the advisor categories and explains the intentional security model.
 
-## Android Phase 2 requirements
+## Android Phase 2 implementation
 
-The implementation-ready [Android Phase 2 design](docs/PHASE2_ANDROID_DESIGN.md)
-is documentation only; Android code has not been changed.
+The [original design](docs/PHASE2_ANDROID_DESIGN.md) is implemented with a few
+conservative choices documented in the [validation record](docs/PHASE2_ANDROID_IMPLEMENTATION.md):
+rollback-journal SQLite with FULL synchronization, one active local slot,
+and abandonment of a live begin continuation after any uncertain response.
 
-Design and implement a transactional local journal, typed new-contract RPC client,
-one active worker, durable dispatch guard, callback persistence before reporting,
-immutable retry payloads, acknowledgment validation, and restart reconciliation.
-Unknown outcomes must pause sending and remain visible. Configuration changes
-must not redirect outstanding reports to a different project/device.
+`GatewayJournal` replaces `PendingSendStore`; legacy preferences are preserved
+and quarantined. `GatewayCoordinator` is the only dispatch coordinator.
+`SmsSentReceiver` commits an immutable callback outcome before scheduling the
+upload-only `OutcomeReportWorker`. The reporter validates exact queue, attempt,
+event, terminal state and completion timestamp before releasing the slot.
+Corruption does not invoke SQLite's default destructive recovery handler.
 
-Address Android 15 foreground-service timeouts explicitly; `START_STICKY` does
-not make a `dataSync` service an unlimited background process. Physical-device
-validation is required for permissions, SIM selection, pacing, callbacks, reboot,
-process death, and network failures. Preserve outbound-only permissions.
+The app starts stopped after process death. Configuration is bound to a
+heartbeat-verified project/device identity; unresolved work blocks switching.
+Same-device credential repair can unblock authentication failures, but cannot
+clear conflicts, legacy quarantine or unknown outcomes. No general reset/retry
+SMS button exists. Reports may continue after sending is paused.
+
+User-started foreground sessions have a one-hour app cap and implement Android
+15 `onTimeout`; they never auto-restart. WorkManager reports only and does not
+replace the polling session. Ten-second pacing and one GSM-7 segment are enforced.
+Do not describe this release as an unattended 24/7 service or exactly-once delivery.
 
 ## Remaining setup after Android is ready
 

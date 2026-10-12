@@ -11,7 +11,11 @@
         android:required="true" />
 
     <application
+        android:name=".GatewayApplication"
+        android:usesCleartextTraffic="false"
         android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Enrollment SMS Gateway"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">

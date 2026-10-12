@@ -1,11 +1,11 @@
 # Enrollment SMS Starter
 
-> **Phase 1 database update:** Forward migrations now implement one-message
-> claims, explicit attempts, expiry fencing, and idempotent outcome reports.
-> **The existing Android client is not yet compatible; keep it stopped.**
-> See [the current RPC contract and cutover guide](docs/PHASE1_RELIABILITY.md)
-> and [database tests](supabase/tests/README.md). Earlier baseline behavior
-> described below is historical where it conflicts with that guide.
+> **Phase 2 Android implementation:** The new client uses the Phase 1 attempt
+> protocol and a durable SQLite journal. Keep legacy gateways stopped. This
+> client has local build/fake-transport test coverage but is not yet approved
+> for operational sending. No real SMS has been sent during this work.
+> See [RPC/cutover](docs/PHASE1_RELIABILITY.md) and
+> [Android validation and rollout](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
 
 A stripped-down outbound-only SMS sender extracted from Nuntium.
 
@@ -33,7 +33,7 @@ This starter intentionally excludes Nuntium's inbox UI, chatbot, auto-reply, org
 ## New Supabase project setup
 
 1. Create a separate Supabase project.
-2. Apply `supabase/migrations/001_enrollment_sms.sql`.
+2. For a new empty database, use the [bootstrap and forward migrations](supabase/tests/README.md). The dedicated project already has these migrations; do not replay them.
 3. Deploy `supabase/functions/queue-enrollment-sms/index.ts` with JWT verification disabled because the function implements its own `x-enrollment-sms-secret` authentication.
 4. Set Edge Function secret `LEAD_SMS_INGEST_SECRET` to a long random value.
 5. Create the Android device token in SQL:
@@ -54,7 +54,22 @@ In the app enter:
 - Device token returned by `create_sms_device`
 - Poll interval (default 5 seconds)
 
-Tap **Test Connection**, then enable the gateway.
+**Test connection** only performs heartbeat; it does not save or start sending.
+**Save and verify profile** binds the journal to the verified device and project.
+A separate **Start one-hour gateway session** button explicitly starts sending.
+Do not press Start until a controlled physical-device test is separately authorized.
+Stop retains saved outcomes and allows reporting to continue. Reopening after process
+death never resumes submission automatically. Unknown outcomes require investigation.
+
+Build with JDK 17 and Android SDK 35:
+
+```sh
+cd android-sms-gateway
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```
+
+The Gradle wrapper, distribution checksum and resolved dependency versions are pinned.
+Tests use fake SMS transport and do not send real messages.
 
 ## Google Apps Script setup
 
@@ -78,11 +93,11 @@ queueEnrollmentSms_({
 
 ## First test
 
-Before wiring the real lead rules:
+Future controlled-device checks, only after explicit authorization (not performed in Phase 2):
 
 1. Install the Android app.
 2. Create the device token.
-3. Enable the gateway.
+3. Verify and save the profile, then explicitly start a bounded session.
 4. Call the Edge Function with your own phone number.
-5. Confirm the row moves `queued -> claimed -> sent`.
+5. Confirm the row moves `queued -> claimed -> sending -> sent`.
 6. Only then connect the existing lead automation.
