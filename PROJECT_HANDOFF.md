@@ -1,6 +1,6 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-11 after Phase 2 Android implementation and local validation.
+Updated 2026-10-12 after live Phase 1 RPC verification and physical-device preparation.
 
 ## Current status
 
@@ -18,7 +18,8 @@ protocol changes have been made in Phase 2. Nothing has been merged.
 The debug APK builds, local fake-transport tests pass, and lint has no errors.
 No device was attached, no APK was installed, and no real SMS was sent. Physical
 transport and end-to-end behavior remain unverified. See the
-[implementation/validation record](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
+[implementation/validation record](docs/PHASE2_ANDROID_IMPLEMENTATION.md) and
+[stopped installation/configuration and device checklist](docs/PHASE2_PHYSICAL_VALIDATION.md).
 
 ## Dedicated infrastructure
 
@@ -147,7 +148,12 @@ Run instructions: [supabase/tests/README.md](supabase/tests/README.md).
   DEFINER RPC access and default-deny RLS tables without client policies.
   Missing foreign-key indexes were fixed; unused-index information on a fresh
   database is not a reason to remove required indexes.
-- The preceding evidence is from Phase 1; no database mutation was needed for Phase 2.
+- The preceding database-suite evidence is from Phase 1. On 2026-10-12 the actual
+  Android Java RPC client passed a separate live HTTPS contract test using temporary
+  non-routable fixtures. It covered heartbeat, claim replay/busy/expiry, begin
+  replay, terminal replay, conflict and wrong-device rejection. No service or SMS
+  transport was constructed. All fixtures and temporary tokens were removed; all
+  five application tables were verified empty afterward. No schema changed.
 - Phase 2 Android: debug APK build, 78 Robolectric executions (36 reliability
   cases on API 26 and 35, plus six lifecycle/configuration cases on API 35),
   and Android lint passed. Remaining lint warnings are documented in the
@@ -183,8 +189,14 @@ Do not describe this release as an unattended 24/7 service or exactly-once deliv
 
 ## Remaining setup after Android is ready
 
-1. Verify the database state and deploy/test the Phase 2 APK.
-2. Provision a dedicated device token securely and test heartbeat.
+1. Follow the stopped installation steps in the physical-device guide; keep
+   SEND_SMS denied and do not start a session. The live RPC contract is verified,
+   but no physical handset was attached or installed during preparation.
+2. Provision a unique handset token with privileged `create_sms_device`, use the
+   dedicated URL and active `default` publishable key, and verify heartbeat. No
+   persistent handset token has been created. Complete the stopped checklist.
+   Active-session/fault and real SMS tests require subsequent authorization; the
+   current APK has no dry-run mode.
 3. Deploy the Edge Function with its custom ingest authentication and configure
    `LEAD_SMS_INGEST_SECRET`. Do not remove custom authentication when disabling JWT
    verification for this service endpoint.

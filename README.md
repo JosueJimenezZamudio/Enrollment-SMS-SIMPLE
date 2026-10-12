@@ -6,6 +6,8 @@
 > for operational sending. No real SMS has been sent during this work.
 > See [RPC/cutover](docs/PHASE1_RELIABILITY.md) and
 > [Android validation and rollout](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
+> Live HTTPS RPC verification passed with disposable no-send fixtures. See
+> [physical-device setup and checklist](docs/PHASE2_PHYSICAL_VALIDATION.md) before installation.
 
 A stripped-down outbound-only SMS sender extracted from Nuntium.
 
