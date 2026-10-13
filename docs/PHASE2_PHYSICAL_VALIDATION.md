@@ -1,5 +1,10 @@
 # Phase 2 controlled physical-device validation
 
+> Historical preparation/implementation record. Subsequent results:
+> [Section A](validation/SECTION_A_RESULT.md) and
+> [first controlled SMS](validation/SECTION_B_FIRST_SMS_RESULT.md).
+> The no-send statements below describe the earlier preparation stage.
+
 Prepared 2026-10-12 on `reliability-phase-2`. **Current authorization stops at
 preparation and no-send contract verification. No physical gateway session or
 real SMS has been started. Nothing is merged.** Apps Script, Sheets, Edge

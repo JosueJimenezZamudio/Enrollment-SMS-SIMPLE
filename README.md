@@ -1,13 +1,13 @@
 # Enrollment SMS Starter
 
-> **Phase 2 Android implementation:** The new client uses the Phase 1 attempt
-> protocol and a durable SQLite journal. Keep legacy gateways stopped. This
-> client has local build/fake-transport test coverage but is not yet approved
-> for operational sending. No real SMS has been sent during this work.
-> See [RPC/cutover](docs/PHASE1_RELIABILITY.md) and
-> [Android validation and rollout](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
-> Live HTTPS RPC verification passed with disposable no-send fixtures. See
-> [physical-device setup and checklist](docs/PHASE2_PHYSICAL_VALIDATION.md) before installation.
+> **Reliability validation:** Phase 1 database fencing and the Phase 2 Android
+> journal passed database/local tests, stopped physical-device checks, and one
+> controlled real SMS with exact local ACK and recipient confirmation.
+> See [Section A](docs/validation/SECTION_A_RESULT.md),
+> [Section B](docs/validation/SECTION_B_FIRST_SMS_RESULT.md), and the
+> [RPC contract](docs/PHASE1_RELIABILITY.md). The phone was stopped and SMS
+> permission revoked after testing. Further sends require separate authorization.
+> Sheet integration remains unimplemented. Keep legacy gateways stopped.
 
 A stripped-down outbound-only SMS sender extracted from Nuntium.
 

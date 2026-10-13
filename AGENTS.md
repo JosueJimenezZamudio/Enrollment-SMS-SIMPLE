@@ -2,9 +2,9 @@
 
 > **Phase 2 Android update:** The client now implements the attempt protocol,
 > durable journal, one-submit dispatch and exact acknowledgment retention.
-> Keep all legacy gateways stopped. No real SMS/physical transport verification
-> has been authorized or performed. See [RPC contract](docs/PHASE1_RELIABILITY.md)
-> and [Android validation](docs/PHASE2_ANDROID_IMPLEMENTATION.md). Those guides
+> Keep all legacy gateways stopped. One controlled physical SMS passed, with
+> recipient confirmation and exact local ACK; no further sends are authorized. See [RPC contract](docs/PHASE1_RELIABILITY.md)
+> and [physical evidence](docs/validation/SECTION_B_FIRST_SMS_RESULT.md). Those guides
 > supersede historical baseline behavior described below.
 
 ## Mission
@@ -442,6 +442,8 @@ Current states:
 ```text
 queued
 claimed
+sending
+unknown
 sent
 failed
 cancelled
@@ -450,13 +452,14 @@ cancelled
 Normal path:
 
 ```text
-queued -> claimed -> sent
+queued -> claimed -> sending -> sent
 ```
 
 Failure path:
 
 ```text
-queued -> claimed -> failed
+queued -> claimed -> failed (preflight)
+queued -> claimed -> sending -> failed / unknown
 ```
 
 Do not create ambiguous transitions without documenting them.
@@ -696,7 +699,7 @@ Unless the user asks for something else, engineering priority should be:
 
 ## Historical reliability issue and current safety boundary
 
-Phase 1 and Phase 2 now distinguish unstarted claims from authorized/unknown attempts. The physical SMS transport remains unverified. Preserve the following historical failure case in future reviews:
+Phase 1 and Phase 2 now distinguish unstarted claims from authorized/unknown attempts. One controlled physical send is verified; physical fault-injection coverage remains incomplete. Preserve the following historical failure case in future reviews:
 
 Do not “fix” this by blindly requeueing old claimed rows.
 

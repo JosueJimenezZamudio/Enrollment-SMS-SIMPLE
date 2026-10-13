@@ -1,0 +1,54 @@
+{
+  "logs": [
+    {
+      "id": 9,
+      "status": "sent",
+      "queue_id": "5db1073a-021f-4b99-847f-1cba68c56af8",
+      "device_id": "d800c0ee-12a4-475a-958e-706c69a500cd",
+      "attempt_id": "6ac33d07-1fbe-4bd4-b4e0-161446511185",
+      "occurred_at": "2026-10-13T02:03:37.887185+00:00"
+    }
+  ],
+  "queue": {
+    "id": "5db1073a-021f-4b99-847f-1cba68c56af8",
+    "state": "sent",
+    "sent_at": "2026-10-13T02:03:37.887185+00:00",
+    "device_id": "d800c0ee-12a4-475a-958e-706c69a500cd",
+    "claimed_by": "d800c0ee-12a4-475a-958e-706c69a500cd",
+    "created_at": "2026-10-13T02:03:32.951218+00:00",
+    "current_attempt_id": "6ac33d07-1fbe-4bd4-b4e0-161446511185"
+  },
+  "counts": {
+    "logs": 1,
+    "attempts": 1,
+    "queue_rows": 1
+  },
+  "attempt": {
+    "id": "6ac33d07-1fbe-4bd4-b4e0-161446511185",
+    "state": "sent",
+    "queue_id": "5db1073a-021f-4b99-847f-1cba68c56af8",
+    "device_id": "d800c0ee-12a4-475a-958e-706c69a500cd",
+    "claimed_at": "2026-10-13T02:03:36.891909+00:00",
+    "completed_at": "2026-10-13T02:03:37.887185+00:00",
+    "claim_request_id": "80fb50b7-9961-4892-89e1-7f5ac74ee6eb",
+    "outcome_event_id": "4760d19e-d3a6-4401-b5ea-08bf8085c4da",
+    "outcome_metadata": {
+      "source": "android_callback",
+      "android_sdk": 34,
+      "app_version": "2.0.0",
+      "recorded_at": "2026-10-13T02:03:37.726397Z",
+      "android_sent_result_code": -1
+    },
+    "send_authorized_at": "2026-10-13T02:03:37.086959+00:00"
+  },
+  "devices": [
+    {
+      "id": "802bb08b-47ff-4658-a670-353732f75160",
+      "enabled": false
+    },
+    {
+      "id": "d800c0ee-12a4-475a-958e-706c69a500cd",
+      "enabled": true
+    }
+  ]
+}

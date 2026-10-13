@@ -1,5 +1,10 @@
 # Phase 2 Android implementation and validation
 
+> Historical preparation/implementation record. Subsequent results:
+> [Section A](validation/SECTION_A_RESULT.md) and
+> [first controlled SMS](validation/SECTION_B_FIRST_SMS_RESULT.md).
+> The no-send statements below describe the earlier preparation stage.
+
 Implemented on `reliability-phase-2`, based on Phase 1 commit
 `b3f500e4ff4c93729309cdac35205a31874044e6`. No merges, database changes,
 Apps Script/Sheets changes, gateway starts, device installation or real SMS sends.

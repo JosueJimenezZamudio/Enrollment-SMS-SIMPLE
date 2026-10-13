@@ -1,6 +1,6 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-12 after live Phase 1 RPC verification and physical-device preparation.
+Updated 2026-10-12 for reliability repository cutover after physical validation.
 
 ## Current status
 
@@ -13,13 +13,17 @@ Android Phase 2 is implemented on `reliability-phase-2`, based on
 It uses the new RPC contract, durable SQLite outcomes, one-submit dispatch,
 restart reconciliation and bounded foreground sessions. Keep every legacy
 gateway stopped. No Apps Script, Sheet integration, Edge Function, or database
-protocol changes have been made in Phase 2. Nothing has been merged.
+protocol changes have been made in Phase 2. Cutover order is Phase 1 then Phase 2
+using merge commits, preserving the reviewed ancestry.
 
-The debug APK builds, local fake-transport tests pass, and lint has no errors.
-No device was attached, no APK was installed, and no real SMS was sent. Physical
-transport and end-to-end behavior remain unverified. See the
-[implementation/validation record](docs/PHASE2_ANDROID_IMPLEMENTATION.md) and
-[stopped installation/configuration and device checklist](docs/PHASE2_PHYSICAL_VALIDATION.md).
+The debug APK builds, local tests pass, and lint has no errors. Section A stopped
+validation and Section B's first controlled real SMS passed on handset 02. Exactly
+one queue row, attempt and sent log were recorded; the local journal retained the
+exact ACK and the owner confirmed one arrival from the expected sender. The phone
+was force-stopped and SEND_SMS revoked afterward. No additional sends are authorized.
+See [Section A](docs/validation/SECTION_A_RESULT.md),
+[Section B evidence](docs/validation/SECTION_B_FIRST_SMS_RESULT.md), and
+[implementation details](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
 
 ## Dedicated infrastructure
 
@@ -36,11 +40,17 @@ transport and end-to-end behavior remain unverified. See the
 This project is independent of Nuntium and the other Supabase projects. Never
 reuse their queues, tokens, credentials, tables, or deployments.
 
-At the completion of Phase 1 verification, all five application tables were
-empty: temporary test data and upgrade-test schemas had been removed or rolled
-back. No production device token, ingest secret, Edge Function deployment, or
-physical sender was configured during Phase 1. Verify actual live state before
-future deployment; do not assume it remains unchanged.
+Phase 1 and synthetic RPC fixtures were removed after their tests. The live
+database now intentionally retains the one real test's terminal evidence:
+queue `5db1073a-021f-4b99-847f-1cba68c56af8`, attempt
+`6ac33d07-1fbe-4bd4-b4e0-161446511185`, both sent, one log. Do not reset or replay it.
+
+Handset 02 identity `d800c0ee-12a4-475a-958e-706c69a500cd` remains enabled for
+authentication; its Android sending session is stopped and SMS permission denied.
+The mistakenly provisioned earlier Enrollment identity
+`802bb08b-47ff-4658-a670-353732f75160` is disabled; that handset is reserved for
+Nuntium, which was not changed. Credentials and raw handset journals remain private.
+Ingest deployment/configuration has not been validated by the direct-queue SMS test.
 
 ## Product boundaries
 
@@ -157,7 +167,9 @@ Run instructions: [supabase/tests/README.md](supabase/tests/README.md).
 - Phase 2 Android: debug APK build, 78 Robolectric executions (36 reliability
   cases on API 26 and 35, plus six lifecycle/configuration cases on API 35),
   and Android lint passed. Remaining lint warnings are documented in the
-  implementation record. No physical-device SMS behavior has been verified.
+  implementation record. The later physical happy-path evidence is linked above;
+  crash/fault scenarios, two-send pacing and Android 15 timeouts remain unverified
+  on physical hardware.
 
 The [contract guide](docs/PHASE1_RELIABILITY.md#security-and-advisor-findings)
 links the advisor categories and explains the intentional security model.
@@ -187,23 +199,17 @@ User-started foreground sessions have a one-hour app cap and implement Android
 replace the polling session. Ten-second pacing and one GSM-7 segment are enforced.
 Do not describe this release as an unattended 24/7 service or exactly-once delivery.
 
-## Remaining setup after Android is ready
+## Next phase
 
-1. Follow the stopped installation steps in the physical-device guide; keep
-   SEND_SMS denied and do not start a session. The live RPC contract is verified,
-   but no physical handset was attached or installed during preparation.
-2. Provision a unique handset token with privileged `create_sms_device`, use the
-   dedicated URL and active `default` publishable key, and verify heartbeat. No
-   persistent handset token has been created. Complete the stopped checklist.
-   Active-session/fault and real SMS tests require subsequent authorization; the
-   current APK has no dry-run mode.
-3. Deploy the Edge Function with its custom ingest authentication and configure
-   `LEAD_SMS_INGEST_SECRET`. Do not remove custom authentication when disabling JWT
-   verification for this service endpoint.
-4. Use one controlled recipient to verify the complete queue/attempt/callback/log
-   flow and duplicate-ingest protection.
-5. Only after transport verification, plan upstream Apps Script/Sheet integration.
-   That integration is explicitly outside the current work.
+Design a dynamic Sheet outbox before implementation. Message content must come
+from Sheet cells/templates, frozen per submission; Apps Script must not hardcode
+message text. The existing ingest function needs stronger duplicate receipts and
+a scoped status-read API before reliable Sheet writeback. No Sheet, trigger,
+Apps Script or Edge Function behavior is changed in this cutover.
+
+Keep the one-message test evidence. Future fault/transport tests and additional
+real sends need their own scope and authorization. Do not present the one
+happy-path send as complete physical reliability coverage.
 
 Service-role credentials stay server-side. Android uses an API key plus a device
 token; Apps Script uses only the ingest secret. Never commit real tokens, secrets,
