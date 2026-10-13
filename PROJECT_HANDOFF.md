@@ -1,6 +1,6 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-11 after Phase 1 database implementation and verification.
+Updated 2026-10-12 for reliability repository cutover after physical validation.
 
 ## Current status
 
@@ -8,13 +8,22 @@ Phase 1 is implemented: the dedicated Supabase database has the forward
 migrations, explicit send attempts, one-message claims, authorization fencing,
 unknown-outcome quarantine, and idempotent terminal RPCs.
 
-**The Android source is still the original client and is incompatible with the
-new mutation signatures. Keep every legacy gateway stopped.** Android Phase 2
-must implement the durable journal and one-submit protocol before any physical
-send. No Apps Script or Sheet integration changes have been made.
+Android Phase 2 is implemented on `reliability-phase-2`, based on
+`reliability-phase-1` at `b3f500e4ff4c93729309cdac35205a31874044e6`.
+It uses the new RPC contract, durable SQLite outcomes, one-submit dispatch,
+restart reconciliation and bounded foreground sessions. Keep every legacy
+gateway stopped. No Apps Script, Sheet integration, Edge Function, or database
+protocol changes have been made in Phase 2. Cutover order is Phase 1 then Phase 2
+using merge commits, preserving the reviewed ancestry.
 
-The system is not yet verified end to end. Successful database tests do not mean
-an APK was built, a phone was configured, or an SMS was sent.
+The debug APK builds, local tests pass, and lint has no errors. Section A stopped
+validation and Section B's first controlled real SMS passed on handset 02. Exactly
+one queue row, attempt and sent log were recorded; the local journal retained the
+exact ACK and the owner confirmed one arrival from the expected sender. The phone
+was force-stopped and SEND_SMS revoked afterward. No additional sends are authorized.
+See [Section A](docs/validation/SECTION_A_RESULT.md),
+[Section B evidence](docs/validation/SECTION_B_FIRST_SMS_RESULT.md), and
+[implementation details](docs/PHASE2_ANDROID_IMPLEMENTATION.md).
 
 ## Dedicated infrastructure
 
@@ -31,11 +40,17 @@ an APK was built, a phone was configured, or an SMS was sent.
 This project is independent of Nuntium and the other Supabase projects. Never
 reuse their queues, tokens, credentials, tables, or deployments.
 
-At the completion of Phase 1 verification, all five application tables were
-empty: temporary test data and upgrade-test schemas had been removed or rolled
-back. No production device token, ingest secret, Edge Function deployment, or
-physical sender was configured during Phase 1. Verify actual live state before
-future deployment; do not assume it remains unchanged.
+Phase 1 and synthetic RPC fixtures were removed after their tests. The live
+database now intentionally retains the one real test's terminal evidence:
+queue `5db1073a-021f-4b99-847f-1cba68c56af8`, attempt
+`6ac33d07-1fbe-4bd4-b4e0-161446511185`, both sent, one log. Do not reset or replay it.
+
+Handset 02 identity `d800c0ee-12a4-475a-958e-706c69a500cd` remains enabled for
+authentication; its Android sending session is stopped and SMS permission denied.
+The mistakenly provisioned earlier Enrollment identity
+`802bb08b-47ff-4658-a670-353732f75160` is disabled; that handset is reserved for
+Nuntium, which was not changed. Credentials and raw handset journals remain private.
+Ingest deployment/configuration has not been validated by the direct-queue SMS test.
 
 ## Product boundaries
 
@@ -143,40 +158,58 @@ Run instructions: [supabase/tests/README.md](supabase/tests/README.md).
   DEFINER RPC access and default-deny RLS tables without client policies.
   Missing foreign-key indexes were fixed; unused-index information on a fresh
   database is not a reason to remove required indexes.
-- Android source, Apps Script, and Edge Function source were not changed. The
-  earlier Android build attempt was blocked by a missing local Android SDK.
-  No physical-device SMS behavior has been verified.
+- The preceding database-suite evidence is from Phase 1. On 2026-10-12 the actual
+  Android Java RPC client passed a separate live HTTPS contract test using temporary
+  non-routable fixtures. It covered heartbeat, claim replay/busy/expiry, begin
+  replay, terminal replay, conflict and wrong-device rejection. No service or SMS
+  transport was constructed. All fixtures and temporary tokens were removed; all
+  five application tables were verified empty afterward. No schema changed.
+- Phase 2 Android: debug APK build, 78 Robolectric executions (36 reliability
+  cases on API 26 and 35, plus six lifecycle/configuration cases on API 35),
+  and Android lint passed. Remaining lint warnings are documented in the
+  implementation record. The later physical happy-path evidence is linked above;
+  crash/fault scenarios, two-send pacing and Android 15 timeouts remain unverified
+  on physical hardware.
 
 The [contract guide](docs/PHASE1_RELIABILITY.md#security-and-advisor-findings)
 links the advisor categories and explains the intentional security model.
 
-## Android Phase 2 requirements
+## Android Phase 2 implementation
 
-The implementation-ready [Android Phase 2 design](docs/PHASE2_ANDROID_DESIGN.md)
-is documentation only; Android code has not been changed.
+The [original design](docs/PHASE2_ANDROID_DESIGN.md) is implemented with a few
+conservative choices documented in the [validation record](docs/PHASE2_ANDROID_IMPLEMENTATION.md):
+rollback-journal SQLite with FULL synchronization, one active local slot,
+and abandonment of a live begin continuation after any uncertain response.
 
-Design and implement a transactional local journal, typed new-contract RPC client,
-one active worker, durable dispatch guard, callback persistence before reporting,
-immutable retry payloads, acknowledgment validation, and restart reconciliation.
-Unknown outcomes must pause sending and remain visible. Configuration changes
-must not redirect outstanding reports to a different project/device.
+`GatewayJournal` replaces `PendingSendStore`; legacy preferences are preserved
+and quarantined. `GatewayCoordinator` is the only dispatch coordinator.
+`SmsSentReceiver` commits an immutable callback outcome before scheduling the
+upload-only `OutcomeReportWorker`. The reporter validates exact queue, attempt,
+event, terminal state and completion timestamp before releasing the slot.
+Corruption does not invoke SQLite's default destructive recovery handler.
 
-Address Android 15 foreground-service timeouts explicitly; `START_STICKY` does
-not make a `dataSync` service an unlimited background process. Physical-device
-validation is required for permissions, SIM selection, pacing, callbacks, reboot,
-process death, and network failures. Preserve outbound-only permissions.
+The app starts stopped after process death. Configuration is bound to a
+heartbeat-verified project/device identity; unresolved work blocks switching.
+Same-device credential repair can unblock authentication failures, but cannot
+clear conflicts, legacy quarantine or unknown outcomes. No general reset/retry
+SMS button exists. Reports may continue after sending is paused.
 
-## Remaining setup after Android is ready
+User-started foreground sessions have a one-hour app cap and implement Android
+15 `onTimeout`; they never auto-restart. WorkManager reports only and does not
+replace the polling session. Ten-second pacing and one GSM-7 segment are enforced.
+Do not describe this release as an unattended 24/7 service or exactly-once delivery.
 
-1. Verify the database state and deploy/test the Phase 2 APK.
-2. Provision a dedicated device token securely and test heartbeat.
-3. Deploy the Edge Function with its custom ingest authentication and configure
-   `LEAD_SMS_INGEST_SECRET`. Do not remove custom authentication when disabling JWT
-   verification for this service endpoint.
-4. Use one controlled recipient to verify the complete queue/attempt/callback/log
-   flow and duplicate-ingest protection.
-5. Only after transport verification, plan upstream Apps Script/Sheet integration.
-   That integration is explicitly outside the current work.
+## Next phase
+
+Design a dynamic Sheet outbox before implementation. Message content must come
+from Sheet cells/templates, frozen per submission; Apps Script must not hardcode
+message text. The existing ingest function needs stronger duplicate receipts and
+a scoped status-read API before reliable Sheet writeback. No Sheet, trigger,
+Apps Script or Edge Function behavior is changed in this cutover.
+
+Keep the one-message test evidence. Future fault/transport tests and additional
+real sends need their own scope and authorization. Do not present the one
+happy-path send as complete physical reliability coverage.
 
 Service-role credentials stay server-side. Android uses an API key plus a device
 token; Apps Script uses only the ingest secret. Never commit real tokens, secrets,

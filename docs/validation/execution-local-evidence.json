@@ -1,0 +1,31 @@
+{
+  "integrity": "ok",
+  "outcome": {
+    "queue": "5db1073a-021f-4b99-847f-1cba68c56af8",
+    "attempt": "6ac33d07-1fbe-4bd4-b4e0-161446511185",
+    "request": "80fb50b7-9961-4892-89e1-7f5ac74ee6eb",
+    "phase": "ACKNOWLEDGED",
+    "sim": 2,
+    "guard_at": "2026-10-13T02:03:37.002176Z",
+    "event": "4760d19e-d3a6-4401-b5ea-08bf8085c4da",
+    "kind": "sent",
+    "callback_code": -1,
+    "acked": 1,
+    "blocked": 0,
+    "active": 0,
+    "receipt": {
+      "state": "sent",
+      "queue_id": "5db1073a-021f-4b99-847f-1cba68c56af8",
+      "attempt_id": "6ac33d07-1fbe-4bd4-b4e0-161446511185",
+      "completed_at": "2026-10-13T02:03:37.887185+00:00",
+      "outcome_due_at": "2026-10-13T02:08:37.086959+00:00",
+      "claim_expires_at": "2026-10-13T02:05:36.891909+00:00",
+      "outcome_event_id": "4760d19e-d3a6-4401-b5ea-08bf8085c4da",
+      "send_authorized_at": "2026-10-13T02:03:37.086959+00:00"
+    }
+  },
+  "active_requests": 0,
+  "unacknowledged_outcomes": 0,
+  "attempt_count": 1,
+  "attention": ""
+}

@@ -1,11 +1,11 @@
 # AGENTS.md
 
-> **Phase 1 database update:** Forward migrations now implement one-message
-> claims, explicit attempts, expiry fencing, and idempotent outcome reports.
-> **The existing Android client is not yet compatible; keep it stopped.**
-> See [the current RPC contract and cutover guide](docs/PHASE1_RELIABILITY.md)
-> and [database tests](supabase/tests/README.md). Earlier baseline behavior
-> described below is historical where it conflicts with that guide.
+> **Phase 2 Android update:** The client now implements the attempt protocol,
+> durable journal, one-submit dispatch and exact acknowledgment retention.
+> Keep all legacy gateways stopped. One controlled physical SMS passed, with
+> recipient confirmation and exact local ACK; no further sends are authorized. See [RPC contract](docs/PHASE1_RELIABILITY.md)
+> and [physical evidence](docs/validation/SECTION_B_FIRST_SMS_RESULT.md). Those guides
+> supersede historical baseline behavior described below.
 
 ## Mission
 
@@ -200,6 +200,8 @@ When a task involves Supabase:
 public.sms_devices
 public.sms_queue
 public.sms_send_log
+public.sms_send_attempts
+public.sms_claim_requests
 ```
 
 ### Current device RPC surface
@@ -207,6 +209,7 @@ public.sms_send_log
 ```text
 device_heartbeat
 device_claim_sms_queue
+device_begin_sms_attempt
 device_mark_sms_sent
 device_mark_sms_failed
 ```
@@ -439,6 +442,8 @@ Current states:
 ```text
 queued
 claimed
+sending
+unknown
 sent
 failed
 cancelled
@@ -447,13 +452,14 @@ cancelled
 Normal path:
 
 ```text
-queued -> claimed -> sent
+queued -> claimed -> sending -> sent
 ```
 
 Failure path:
 
 ```text
-queued -> claimed -> failed
+queued -> claimed -> failed (preflight)
+queued -> claimed -> sending -> failed / unknown
 ```
 
 Do not create ambiguous transitions without documenting them.
@@ -691,9 +697,9 @@ Unless the user asks for something else, engineering priority should be:
 
 ---
 
-## Known unresolved reliability issue
+## Historical reliability issue and current safety boundary
 
-The most important architectural gap is recovery of queue rows stuck in `claimed`.
+Phase 1 and Phase 2 now distinguish unstarted claims from authorized/unknown attempts. One controlled physical send is verified; physical fault-injection coverage remains incomplete. Preserve the following historical failure case in future reviews:
 
 Do not “fix” this by blindly requeueing old claimed rows.
 

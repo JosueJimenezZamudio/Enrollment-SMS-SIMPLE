@@ -1,6 +1,7 @@
 # Phase 2 design: Android against the Phase 1 RPC contract
 
-Status: design only, 2026-10-11. No Android implementation changes in this PR.
+Status: original design from 2026-10-11, now implemented on `reliability-phase-2`.
+See [implementation and validation](PHASE2_ANDROID_IMPLEMENTATION.md) for actual scope and remaining checks.
 Phase 1 was published first in PR #1. This document is a separate planning commit.
 Apps Script, Sheets, Edge Function behavior, and database migrations remain outside
 Phase 2 implementation scope unless a separately reviewed contract change is needed.
@@ -274,5 +275,5 @@ malformed 2xx ACKs, unknown SQL errors and old pending records.
 A real phone must establish successful and failed callback behavior, lost-ACK
 recovery, screen-off operation, process death/reboot, and timeout handling under
 its Android version. Database tests and emulators alone cannot establish carrier
-submission behavior. No Phase 2 code, build, or physical verification is claimed
-by this design document.
+submission behavior. This document originally specified the design; implementation/build evidence is
+recorded separately. Physical-device verification remains pending.
