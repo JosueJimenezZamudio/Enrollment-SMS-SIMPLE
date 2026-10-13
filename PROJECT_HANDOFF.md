@@ -1,20 +1,25 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-13 for Phase 3A producer API implementation (not deployed).
+Updated 2026-10-13 for Phase 3A deployment and stopped production validation.
 
 ## Current status
 
 Phase 1 then Phase 2 were merged into `main` (PRs #1 and #2). Phase 3A is now
 implemented on `reliability-phase-3a`, based on main commit
-`d27be2f49bcb69d2a5a99db911a5bf5a3bd7f670`, pending PR review/merge and deployment.
+`d27be2f49bcb69d2a5a99db911a5bf5a3bd7f670`, deployed and pending PR review/merge.
 It adds client/device bindings, immutable ingest receipts, material-payload conflict
 handling and a separate-secret status endpoint. See the authoritative
 [Phase 3A contract, cutover and validation record](docs/PHASE3A_PRODUCER_API.md).
-Public Phase 3A tables/RPCs and Edge Functions are **not deployed**. No live producer
-binding or ingest/read secrets were provisioned. Isolated SQL test fixtures and
-history entries were removed; the original physical-send evidence is unchanged.
+Public Phase 3A tables/RPCs and both version-1 Edge Functions are deployed. Separate
+ingest/read secrets are configured; `enrollment-sheet-worker` is bound to handset 02
+and disabled. Stopped production smoke tests passed, including actual HTTPS auth,
+duplicate receipts, message/schedule/routing/ownership conflicts, minimal status
+projection and cross-client denial. All synthetic fixtures were removed. The original
+Section B queue/attempt/log fingerprints, ten claim receipts and handset heartbeat
+timestamps are unchanged. See [deployed evidence](docs/validation/PHASE3A_PRODUCTION_SMOKE.md).
 41 handler checks, one HTTP/runtime integration test, 65 SQL checks and three
-concurrency scenarios passed. No Android/Apps Script/Sheet changes or real sends.
+concurrency scenarios passed before deployment; the 65 rollback-only SQL checks
+also passed against the deployed RPCs. No Android/Apps Script/Sheet changes or sends.
 
 Phase 1 is implemented: the dedicated Supabase database has the forward
 migrations, explicit send attempts, one-message claims, authorization fencing,
@@ -62,7 +67,7 @@ authentication; its Android sending session is stopped and SMS permission denied
 The mistakenly provisioned earlier Enrollment identity
 `802bb08b-47ff-4658-a670-353732f75160` is disabled; that handset is reserved for
 Nuntium, which was not changed. Credentials and raw handset journals remain private.
-Ingest deployment/configuration has not been validated by the direct-queue SMS test.
+Ingest deployment/configuration is now separately validated by stopped Phase 3A smoke tests.
 
 ## Product boundaries
 
@@ -138,9 +143,10 @@ Applied versions, aligned with repository filenames:
 2. `20261011232557_sms_send_attempts.sql` — protocol, legacy quarantine, grants,
    and schema-qualified pgcrypto helper compatibility.
 3. `20261011233522_sms_attempt_indexes.sql` — indexes identified by advisor review.
+4. `20261013023711_producer_ingest_receipts.sql` — Phase 3A receipts, bindings and producer RPCs.
 
-MCP assigned timestamp versions during application; those three history entries
-were then aligned to the matching repository versions. Schema SQL was not changed
+MCP assigned timestamp versions during application; the three Phase 1 entries
+and the later Phase 3A entry were aligned to their matching repository versions. Schema SQL was not changed
 by that metadata alignment. Do not replay them on the dedicated project.
 
 The baseline assumes pgcrypto is installed in `public`, whereas Supabase installs
@@ -213,14 +219,13 @@ Do not describe this release as an unattended 24/7 service or exactly-once deliv
 
 ## Next phase
 
-Review and merge Phase 3A only after validation, then perform its documented backend
-cutover and stopped deployment smoke checks. Keep all producers disabled until the
+Review Phase 3A with its completed deployed validation evidence before merging. Keep all producers disabled until the
 next rollout is authorized. Design/implement the dynamic Sheet worker separately:
 message cells/templates, preview/approval, frozen ledger, stable dedupe identities,
 status writeback and later email/lead integration. No Sheet or Apps Script UI has
 been created in Phase 3A. The existing helper needs frozen schedules on retries.
 
-New migration: `20261013023711_producer_ingest_receipts.sql` (pending deployment).
+New migration: `20261013023711_producer_ingest_receipts.sql` (deployed).
 New tables: `sms_ingest_clients`, `sms_ingest_receipts`, both default-deny RLS.
 New service-only RPCs: `producer_enqueue_sms`, `producer_sms_status`.
 New endpoint: `sms-queue-status`. Existing ingest header remains unchanged.

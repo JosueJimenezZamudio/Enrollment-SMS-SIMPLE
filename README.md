@@ -38,18 +38,18 @@ The [Phase 3A contract and cutover guide](docs/PHASE3A_PRODUCER_API.md) adds ato
 frozen-payload dedupe receipts and a minimal, client-scoped `sms-queue-status`
 endpoint. Same key/payload returns the original queue ID and current state; changed
 payload returns 409. A stable dedupe key is required. Status uses a separate read
-secret; service-role credentials remain server-side. This implementation is not yet
-deployed. Sheet/Apps Script integration remains a later phase.
+secret; service-role credentials remain server-side. The backend is deployed and stopped production smoke tests passed; the Sheet
+producer remains disabled. Sheet/Apps Script integration remains a later phase.
 
 ## New Supabase project setup
 
 1. Create a separate Supabase project, independent of Nuntium.
 2. For a new empty database, use the [bootstrap and forward migrations](supabase/tests/README.md).
-   The dedicated project already has Phase 1; apply only the new Phase 3A migration there.
+   The dedicated project already has Phase 1 and Phase 3A; do not replay those migrations.
 3. Provision the Android identity using `create_sms_device` only when setting up a
    genuinely new handset. Store its returned token privately; do not replace the
    existing validated handset token during API cutover.
-4. Follow the [producer cutover procedure](docs/PHASE3A_PRODUCER_API.md#cutover-procedure-not-executed-by-this-pr)
+4. Follow the [producer cutover procedure](docs/PHASE3A_PRODUCER_API.md#cutover-procedure)
    to bind a disabled ingest client to the intended device, configure the ingest/read
    secrets and client ID, and deploy both Edge Functions with custom authentication.
    Leave producers and the gateway stopped until rollout is authorized.

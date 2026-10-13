@@ -7,11 +7,13 @@ No new real SMS is authorized. Keep the gateway stopped.
 
 ## Deployment status
 
-As of 2026-10-13, **not deployed to the public schema or Edge runtime**. The dedicated
-project has the three Phase 1 migrations and its original successful physical-test
-row/attempt/log. Phase 3A SQL was exercised in isolated test schemas, then removed.
-Temporary setup/cleanup migration-history entries were removed after verifying
-those schemas were gone; the deployed history remains aligned to Phase 1.
+As of 2026-10-13, the forward migration and both version-1 Edge Functions are
+**deployed** to `rccdxrmyavihzdrgokpv`. Separate ingest/read secrets are configured.
+The scoped `enrollment-sheet-worker` producer is bound to the validated Enrollment
+handset and remains **disabled**. Stopped production smoke tests passed; all synthetic
+fixtures were removed and Section B evidence is unchanged. See the
+[production validation report](validation/PHASE3A_PRODUCTION_SMOKE.md).
+PR #3 remains unmerged; no Sheet, trigger or Android session was started.
 
 ## Auth and scope
 
@@ -157,7 +159,7 @@ send callback succeeded, not delivery/read or exact local journal acknowledgment
 Status is an observation at query time; later transitions can occur immediately.
 Responses specify `Cache-Control: no-store`.
 
-## Cutover procedure (not executed by this PR)
+## Cutover procedure
 
 1. Keep gateways stopped and submission producers paused. Review this PR and its
    validation record. Confirm current project and deployed migration history.
@@ -219,8 +221,8 @@ See [test commands](../supabase/tests/README.md). Results on 2026-10-13:
 
 The local PostgreSQL build completed but sandbox IPC blocked startup. SQL verification
 therefore used Supabase PostgreSQL in isolated schemas, not the live application tables.
-The HTTP integration uses a fake database API; deployed Edge-to-PostgREST smoke checks
-remain a rollout step because neither public Phase 3A RPCs nor endpoints are deployed.
+The HTTP integration uses a fake database API; deployed Edge-to-PostgREST smoke checks were subsequently completed; see the production
+validation report linked above.
 
 Security/performance advisors were run while test schema objects existed. New producer
 tables have intentional [default-deny RLS without client policies](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).

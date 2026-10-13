@@ -10,8 +10,9 @@
 ## Phase 3A producer boundary
 
 Read [the Phase 3A contract](docs/PHASE3A_PRODUCER_API.md) before changing ingest,
-status reads or producer permissions. The implementation is pending deployment;
-do not infer a live endpoint/client from repository code.
+status reads or producer permissions. Phase 3A is deployed and stopped smoke tests
+passed; the Sheet producer remains disabled. See docs/validation/PHASE3A_PRODUCTION_SMOKE.md.
+Do not enable ingestion or start a handset session without the next rollout scope.
 
 - Keep `sms_ingest_receipts` immutable to Edge roles and preserve global queue-key uniqueness.
 - Require a stable key and compare the frozen normalized payload, including schedule
@@ -224,8 +225,8 @@ public.sms_queue
 public.sms_send_log
 public.sms_send_attempts
 public.sms_claim_requests
-public.sms_ingest_clients   -- Phase 3A, pending deployment
-public.sms_ingest_receipts  -- Phase 3A, pending deployment
+public.sms_ingest_clients   -- Phase 3A, deployed
+public.sms_ingest_receipts  -- Phase 3A, deployed
 ```
 
 ### Current device RPC surface
