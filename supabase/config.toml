@@ -1,0 +1,5 @@
+# These two endpoints validate their own narrowly scoped shared secrets.
+[functions.queue-enrollment-sms]
+verify_jwt = false
+[functions.sms-queue-status]
+verify_jwt = false

@@ -42,3 +42,38 @@ The baseline migration is intentionally unchanged. The fresh-database bootstrap
 works around its unqualified pgcrypto function definitions with transaction-local
 `check_function_bodies=off`; the forward migration replaces the affected
 functions using the extension's actual schema before they are invoked.
+
+## Phase 3A producer API
+
+```sh
+# Pure request-handler tests; no database/network permissions.
+deno test supabase/tests/producer_api_test.ts
+# Runtime and pinned Supabase client over loopback HTTP, fake PostgREST backend.
+deno test --allow-env --allow-net=127.0.0.1 supabase/tests/producer_http_test.ts
+deno check supabase/functions/queue-enrollment-sms/index.ts supabase/functions/sms-queue-status/index.ts
+deno lint supabase/functions supabase/tests/producer_api_test.ts supabase/tests/producer_http_test.ts
+
+# After bootstrap in a disposable DB; all sequential fixtures roll back.
+psql -X -v ON_ERROR_STOP=1 -f supabase/tests/producer.sql
+# Same migrations/tests in isolated schemas, rolled back; suitable for MCP SQL.
+python3 supabase/tests/producer_isolated.py | psql -X -v ON_ERROR_STOP=1
+# Two real sessions in private disposable schemas; teardown runs in finally.
+python3 supabase/tests/producer_concurrency.py --isolated-test-schemas
+```
+
+For an MCP concurrency runner, `producer_concurrency.py --print-json` emits one
+`setup`, three `scenarios` (each has two `sessions` and `verify`), and `cleanup`.
+Apply fixture DDL through the migration tool, run each pair concurrently, inspect
+both results and verify, then remove the isolated schemas. Never proceed after
+setup fails or clean up an unrecognized schema. A stopped runner can leave fixtures;
+inspect before resuming. Temporary setup/cleanup migration history must be reconciled
+after successful teardown so it does not appear as a deployed product migration.
+Do not expose these schemas via PostgREST or attach a gateway to them.
+
+Tests exercise the actual SQL using `service_role`, with administrator-only fixture
+state changes. No phone calls, SMS sends, token provisioning on physical handsets,
+or live queue updates occur. Concurrency fixtures use reserved example numbers,
+future schedules and isolated queue tables. `producer.sql` also verifies that
+anonymous/authenticated clients cannot execute the producer RPCs or read receipts.
+
+See [Phase 3A validation and limitations](../../docs/PHASE3A_PRODUCER_API.md#validation).

@@ -1,0 +1,314 @@
+{
+  "deployment": {
+    "project_ref": "rccdxrmyavihzdrgokpv",
+    "implementation_commit": "8ceabf1f6fda82281c7b090350dbd3e0a8d66e5b",
+    "migration_version": "20261013023711",
+    "producer_id": "enrollment-sheet-worker",
+    "handset_id": "d800c0ee-12a4-475a-958e-706c69a500cd",
+    "baseline": {
+      "queue_fingerprint": "815be0b175c00a2c146f64a81d729659",
+      "attempt_fingerprint": "858810e80faa89ff95a49cc49581a571",
+      "log_fingerprint": "410c0ea7fd163107b9e0ad1ee77de1ca",
+      "claim_receipts": 10,
+      "queue_count": 1,
+      "attempt_count": 1,
+      "log_count": 1
+    },
+    "functions": {
+      "queue-enrollment-sms": {
+        "id": "a5be4544-1e27-4b93-a7e7-66c32c0d6ebe",
+        "version": 1,
+        "verify_jwt": false
+      },
+      "sms-queue-status": {
+        "id": "89068a6f-3c01-4eda-b80c-acbab8d36bda",
+        "version": 1,
+        "verify_jwt": false
+      }
+    },
+    "deployed_sql_checks_passed": 65,
+    "adb_connected": false,
+    "unauthorized_before_secrets": {
+      "queue-enrollment-sms": 401,
+      "sms-queue-status": 401
+    }
+  },
+  "http_checks": [
+    {
+      "check": "queue-enrollment-sms unauthorized none",
+      "at": "2026-10-13T18:57:48.530733+00:00",
+      "http_status": 401,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "check": "queue-enrollment-sms unauthorized wrong",
+      "at": "2026-10-13T18:57:49.438790+00:00",
+      "http_status": 401,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "check": "sms-queue-status unauthorized none",
+      "at": "2026-10-13T18:57:49.776435+00:00",
+      "http_status": 401,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "check": "sms-queue-status unauthorized wrong",
+      "at": "2026-10-13T18:57:50.036706+00:00",
+      "http_status": 401,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "check": "read credential cannot ingest",
+      "at": "2026-10-13T18:57:50.330300+00:00",
+      "http_status": 401,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "check": "ingest credential cannot read",
+      "at": "2026-10-13T18:57:50.590262+00:00",
+      "http_status": 401,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "check": "one synthetic item created",
+      "at": "2026-10-13T18:57:51.284774+00:00",
+      "http_status": 201,
+      "body": {
+        "ok": true,
+        "duplicate": false,
+        "dedupeKey": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+        "queued": {
+          "id": "35159b6b-2f19-4be3-8bbc-2ad81828fa40",
+          "dedupe_key": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+          "status": "queued",
+          "scheduled_at": "2099-01-01T00:00:00+00:00",
+          "claimed_at": null,
+          "sent_at": null,
+          "failed_at": null,
+          "last_error": null,
+          "attempt_status": null
+        }
+      }
+    },
+    {
+      "check": "identical frozen retry",
+      "at": "2026-10-13T18:57:51.743520+00:00",
+      "http_status": 200,
+      "body": {
+        "ok": true,
+        "duplicate": true,
+        "dedupeKey": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+        "queued": {
+          "id": "35159b6b-2f19-4be3-8bbc-2ad81828fa40",
+          "dedupe_key": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+          "status": "queued",
+          "scheduled_at": "2099-01-01T00:00:00+00:00",
+          "claimed_at": null,
+          "sent_at": null,
+          "failed_at": null,
+          "last_error": null,
+          "attempt_status": null
+        }
+      }
+    },
+    {
+      "check": "changed message conflict",
+      "at": "2026-10-13T18:57:52.086974+00:00",
+      "http_status": 409,
+      "body": {
+        "error": "Dedupe key conflicts with an existing submission",
+        "code": "DEDUPE_CONFLICT"
+      }
+    },
+    {
+      "check": "changed schedule conflict",
+      "at": "2026-10-13T18:57:52.509715+00:00",
+      "http_status": 409,
+      "body": {
+        "error": "Dedupe key conflicts with an existing submission",
+        "code": "DEDUPE_CONFLICT"
+      }
+    },
+    {
+      "check": "status by ID",
+      "at": "2026-10-13T18:57:52.742076+00:00",
+      "http_status": 200,
+      "body": {
+        "ok": true,
+        "queued": {
+          "id": "35159b6b-2f19-4be3-8bbc-2ad81828fa40",
+          "dedupe_key": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+          "status": "queued",
+          "scheduled_at": "2099-01-01T00:00:00+00:00",
+          "claimed_at": null,
+          "sent_at": null,
+          "failed_at": null,
+          "last_error": null,
+          "attempt_status": null
+        }
+      }
+    },
+    {
+      "check": "status by key",
+      "at": "2026-10-13T18:57:53.118488+00:00",
+      "http_status": 200,
+      "body": {
+        "ok": true,
+        "queued": {
+          "id": "35159b6b-2f19-4be3-8bbc-2ad81828fa40",
+          "dedupe_key": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+          "status": "queued",
+          "scheduled_at": "2099-01-01T00:00:00+00:00",
+          "claimed_at": null,
+          "sent_at": null,
+          "failed_at": null,
+          "last_error": null,
+          "attempt_status": null
+        }
+      }
+    },
+    {
+      "check": "status by both",
+      "at": "2026-10-13T18:57:53.441976+00:00",
+      "http_status": 200,
+      "body": {
+        "ok": true,
+        "queued": {
+          "id": "35159b6b-2f19-4be3-8bbc-2ad81828fa40",
+          "dedupe_key": "phase3a-smoke:1bdadd66-21d6-46cf-8648-70ea9ea7ec9b",
+          "status": "queued",
+          "scheduled_at": "2099-01-01T00:00:00+00:00",
+          "claimed_at": null,
+          "sent_at": null,
+          "failed_at": null,
+          "last_error": null,
+          "attempt_status": null
+        }
+      }
+    },
+    {
+      "check": "nonexistent ID",
+      "at": "2026-10-13T18:57:53.843860+00:00",
+      "http_status": 404,
+      "body": {
+        "error": "Queue item not found"
+      }
+    },
+    {
+      "check": "nonexistent key",
+      "at": "2026-10-13T18:57:54.222381+00:00",
+      "http_status": 404,
+      "body": {
+        "error": "Queue item not found"
+      }
+    },
+    {
+      "check": "mismatched selectors",
+      "at": "2026-10-13T18:57:54.562592+00:00",
+      "http_status": 404,
+      "body": {
+        "error": "Queue item not found"
+      }
+    },
+    {
+      "check": "changed server routing conflict",
+      "at": "2026-10-13T18:58:09.478370+00:00",
+      "http_status": 409,
+      "body": {
+        "error": "Dedupe key conflicts with an existing submission",
+        "code": "DEDUPE_CONFLICT"
+      }
+    },
+    {
+      "check": "other client ID read denied",
+      "at": "2026-10-13T18:58:28.763378+00:00",
+      "http_status": 404,
+      "body": {
+        "error": "Queue item not found"
+      }
+    },
+    {
+      "check": "other client key read denied",
+      "at": "2026-10-13T18:58:29.274251+00:00",
+      "http_status": 404,
+      "body": {
+        "error": "Queue item not found"
+      }
+    },
+    {
+      "check": "other client dedupe ownership conflict",
+      "at": "2026-10-13T18:58:29.668418+00:00",
+      "http_status": 409,
+      "body": {
+        "error": "Dedupe key conflicts with an existing submission",
+        "code": "DEDUPE_CONFLICT"
+      }
+    },
+    {
+      "check": "disabled final producer blocks ingest",
+      "at": "2026-10-13T21:29:15.025625+00:00",
+      "http_status": 503,
+      "body": {
+        "error": "Ingest client unavailable"
+      }
+    },
+    {
+      "check": "removed fixture unavailable",
+      "at": "2026-10-13T21:29:15.406120+00:00",
+      "http_status": 404,
+      "body": {
+        "error": "Queue item not found"
+      }
+    }
+  ],
+  "after_cleanup": {
+    "clients": [
+      {
+        "id": "enrollment-sheet-worker",
+        "enabled": false,
+        "device_id": "d800c0ee-12a4-475a-958e-706c69a500cd"
+      }
+    ],
+    "devices": [
+      {
+        "id": "802bb08b-47ff-4658-a670-353732f75160",
+        "enabled": false,
+        "last_seen_at": "2026-10-13T01:14:10.647798+00:00"
+      },
+      {
+        "id": "d800c0ee-12a4-475a-958e-706c69a500cd",
+        "enabled": true,
+        "last_seen_at": "2026-10-13T02:03:52.487655+00:00"
+      }
+    ],
+    "log_count": 1,
+    "migrations": [
+      "001",
+      "20261011232557",
+      "20261011233522",
+      "20261013023711"
+    ],
+    "queue_count": 1,
+    "attempt_count": 1,
+    "claim_receipts": 10,
+    "ingest_receipts": 0,
+    "log_fingerprint": "410c0ea7fd163107b9e0ad1ee77de1ca",
+    "queue_fingerprint": "815be0b175c00a2c146f64a81d729659",
+    "attempt_fingerprint": "858810e80faa89ff95a49cc49581a571"
+  },
+  "baseline_fingerprints_match": true,
+  "synthetic_fixtures_removed": true
+}

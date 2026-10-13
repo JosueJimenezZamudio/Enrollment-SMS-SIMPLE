@@ -6,3 +6,4 @@ set local check_function_bodies = off;
 commit;
 \ir ../migrations/20261011232557_sms_send_attempts.sql
 \ir ../migrations/20261011233522_sms_attempt_indexes.sql
+\ir ../migrations/20261013023711_producer_ingest_receipts.sql
