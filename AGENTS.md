@@ -7,6 +7,27 @@
 > and [physical evidence](docs/validation/SECTION_B_FIRST_SMS_RESULT.md). Those guides
 > supersede historical baseline behavior described below.
 
+## Phase 3A producer boundary
+
+Read [the Phase 3A contract](docs/PHASE3A_PRODUCER_API.md) before changing ingest,
+status reads or producer permissions. The implementation is pending deployment;
+do not infer a live endpoint/client from repository code.
+
+- Keep `sms_ingest_receipts` immutable to Edge roles and preserve global queue-key uniqueness.
+- Require a stable key and compare the frozen normalized payload, including schedule
+  intent and server handset routing. Same identity returns its current receipt;
+  materially different content or client is 409, never a successful blind duplicate.
+- Never adopt a legacy/manual queue row without proven producer ownership.
+- `SMS_INGEST_CLIENT_ID` is server configuration, not a request parameter.
+- Status uses distinct `LEAD_SMS_STATUS_SECRET` with the existing header name;
+  no ingest-secret fallback. Return only the nine documented fields for owned items.
+- Do not expose raw backend errors, contact/message content, device IDs or tokens.
+- New SQL producer functions are service-only SECURITY INVOKER; clients get no
+  direct table/RPC grants. No state mutation belongs in a status read.
+- Test concurrent same/different payloads, cross-client isolation, role grants,
+  every state, and HTTP authentication/projection. Keep fixtures isolated from any gateway.
+- Keep Sheet/Apps Script and Android behavior unchanged unless separately scoped.
+
 ## Mission
 
 You are working on **Enrollment-SMS-SIMPLE**, a deliberately small outbound SMS transport service for enrollment/recruitment automation.
@@ -123,6 +144,7 @@ Never commit:
 - Supabase secret keys,
 - raw Android device tokens,
 - `LEAD_SMS_INGEST_SECRET`,
+- `LEAD_SMS_STATUS_SECRET`,
 - `SMS_INGEST_SECRET`,
 - real passwords,
 - OAuth credentials,
@@ -202,6 +224,8 @@ public.sms_queue
 public.sms_send_log
 public.sms_send_attempts
 public.sms_claim_requests
+public.sms_ingest_clients   -- Phase 3A, pending deployment
+public.sms_ingest_receipts  -- Phase 3A, pending deployment
 ```
 
 ### Current device RPC surface
@@ -252,6 +276,8 @@ Path:
 
 ```text
 supabase/functions/queue-enrollment-sms/index.ts
+supabase/functions/sms-queue-status/index.ts
+supabase/functions/_shared/
 ```
 
 Responsibilities should stay narrow:
@@ -411,7 +437,7 @@ Keep it small.
 
 Do not put the Supabase service-role key in Script Properties.
 
-Only use the ingest secret needed to call the Edge Function.
+Use only the ingest/read secrets needed for the producer Edge Functions.
 
 ### Idempotency
 

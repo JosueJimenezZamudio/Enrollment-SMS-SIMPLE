@@ -32,19 +32,27 @@ This starter intentionally excludes Nuntium's inbox UI, chatbot, auto-reply, org
 - The Apps Script uses a custom ingest secret to call the Edge Function. It never receives the service-role key.
 - Failed messages stay visible in `sms_queue` with `last_error`.
 
+## Phase 3A producer API
+
+The [Phase 3A contract and cutover guide](docs/PHASE3A_PRODUCER_API.md) adds atomic
+frozen-payload dedupe receipts and a minimal, client-scoped `sms-queue-status`
+endpoint. Same key/payload returns the original queue ID and current state; changed
+payload returns 409. A stable dedupe key is required. Status uses a separate read
+secret; service-role credentials remain server-side. This implementation is not yet
+deployed. Sheet/Apps Script integration remains a later phase.
+
 ## New Supabase project setup
 
-1. Create a separate Supabase project.
-2. For a new empty database, use the [bootstrap and forward migrations](supabase/tests/README.md). The dedicated project already has these migrations; do not replay them.
-3. Deploy `supabase/functions/queue-enrollment-sms/index.ts` with JWT verification disabled because the function implements its own `x-enrollment-sms-secret` authentication.
-4. Set Edge Function secret `LEAD_SMS_INGEST_SECRET` to a long random value.
-5. Create the Android device token in SQL:
-
-```sql
-select * from public.create_sms_device('Enrollment Android', '+1XXXXXXXXXX');
-```
-
-Copy the returned `device_token` immediately. Only its hash is stored.
+1. Create a separate Supabase project, independent of Nuntium.
+2. For a new empty database, use the [bootstrap and forward migrations](supabase/tests/README.md).
+   The dedicated project already has Phase 1; apply only the new Phase 3A migration there.
+3. Provision the Android identity using `create_sms_device` only when setting up a
+   genuinely new handset. Store its returned token privately; do not replace the
+   existing validated handset token during API cutover.
+4. Follow the [producer cutover procedure](docs/PHASE3A_PRODUCER_API.md#cutover-procedure-not-executed-by-this-pr)
+   to bind a disabled ingest client to the intended device, configure the ingest/read
+   secrets and client ID, and deploy both Edge Functions with custom authentication.
+   Leave producers and the gateway stopped until rollout is authorized.
 
 ## Android setup
 
@@ -73,33 +81,24 @@ cd android-sms-gateway
 The Gradle wrapper, distribution checksum and resolved dependency versions are pinned.
 Tests use fake SMS transport and do not send real messages.
 
-## Google Apps Script setup
+## Future Google Sheet / Apps Script integration
 
-Copy `google-apps-script/EnrollmentSms.gs` into the lead-automation Apps Script project.
+Phase 3A supplies the backend contracts only. The existing
+`google-apps-script/EnrollmentSms.gs` helper is unchanged and is not the dynamic
+Sheet worker. Do not enable its hardcoded test helper or install triggers yet.
 
-Set Script Properties:
-- `SMS_EDGE_FUNCTION_URL` = `https://<project-ref>.supabase.co/functions/v1/queue-enrollment-sms`
-- `SMS_INGEST_SECRET` = the same value as `LEAD_SMS_INGEST_SECRET`
+The future worker must freeze phone, literal message from Sheet cells/templates,
+lead/event identifiers, stable dedupe key and schedule before submission. Retry that
+same snapshot after uncertain acceptance; use the status endpoint to reconcile by
+queue ID or dedupe key. The current helper recomputes omitted schedules, so retries
+must explicitly pass the original frozen `scheduledAt`.
 
-Then call:
+Apps Script will hold only endpoint URLs and ingest/read secrets in private Script
+Properties, never a service-role key. Read [the API contract](docs/PHASE3A_PRODUCER_API.md)
+for exact response shapes, status semantics and deployment prerequisites.
 
-```javascript
-queueEnrollmentSms_({
-  phone: row.phone,
-  message: 'Thanks for your interest in USC East! Complete your application here: ...',
-  leadId: row.id,
-  eventType: 'initial_interest_form',
-  dedupeKey: 'initial_interest_form:' + row.id
-});
-```
+## Validation
 
-## First test
-
-Future controlled-device checks, only after explicit authorization (not performed in Phase 2):
-
-1. Install the Android app.
-2. Create the device token.
-3. Verify and save the profile, then explicitly start a bounded session.
-4. Call the Edge Function with your own phone number.
-5. Confirm the row moves `queued -> claimed -> sending -> sent`.
-6. Only then connect the existing lead automation.
+Run [producer and database tests](supabase/tests/README.md) without a live gateway.
+Physical Section A and the first controlled Section B send are already preserved
+in `docs/validation/`. Additional real sends require separate authorization.

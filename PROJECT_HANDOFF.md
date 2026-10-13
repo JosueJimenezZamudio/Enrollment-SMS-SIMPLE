@@ -1,8 +1,20 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-12 for reliability repository cutover after physical validation.
+Updated 2026-10-13 for Phase 3A producer API implementation (not deployed).
 
 ## Current status
+
+Phase 1 then Phase 2 were merged into `main` (PRs #1 and #2). Phase 3A is now
+implemented on `reliability-phase-3a`, based on main commit
+`d27be2f49bcb69d2a5a99db911a5bf5a3bd7f670`, pending PR review/merge and deployment.
+It adds client/device bindings, immutable ingest receipts, material-payload conflict
+handling and a separate-secret status endpoint. See the authoritative
+[Phase 3A contract, cutover and validation record](docs/PHASE3A_PRODUCER_API.md).
+Public Phase 3A tables/RPCs and Edge Functions are **not deployed**. No live producer
+binding or ingest/read secrets were provisioned. Isolated SQL test fixtures and
+history entries were removed; the original physical-send evidence is unchanged.
+41 handler checks, one HTTP/runtime integration test, 65 SQL checks and three
+concurrency scenarios passed. No Android/Apps Script/Sheet changes or real sends.
 
 Phase 1 is implemented: the dedicated Supabase database has the forward
 migrations, explicit send attempts, one-message claims, authorization fencing,
@@ -201,17 +213,25 @@ Do not describe this release as an unattended 24/7 service or exactly-once deliv
 
 ## Next phase
 
-Design a dynamic Sheet outbox before implementation. Message content must come
-from Sheet cells/templates, frozen per submission; Apps Script must not hardcode
-message text. The existing ingest function needs stronger duplicate receipts and
-a scoped status-read API before reliable Sheet writeback. No Sheet, trigger,
-Apps Script or Edge Function behavior is changed in this cutover.
+Review and merge Phase 3A only after validation, then perform its documented backend
+cutover and stopped deployment smoke checks. Keep all producers disabled until the
+next rollout is authorized. Design/implement the dynamic Sheet worker separately:
+message cells/templates, preview/approval, frozen ledger, stable dedupe identities,
+status writeback and later email/lead integration. No Sheet or Apps Script UI has
+been created in Phase 3A. The existing helper needs frozen schedules on retries.
+
+New migration: `20261013023711_producer_ingest_receipts.sql` (pending deployment).
+New tables: `sms_ingest_clients`, `sms_ingest_receipts`, both default-deny RLS.
+New service-only RPCs: `producer_enqueue_sms`, `producer_sms_status`.
+New endpoint: `sms-queue-status`. Existing ingest header remains unchanged.
+New server configuration: `SMS_INGEST_CLIENT_ID` and distinct `LEAD_SMS_STATUS_SECRET`.
+Neither endpoint exposes arbitrary rows, contact/message content or device details.
 
 Keep the one-message test evidence. Future fault/transport tests and additional
 real sends need their own scope and authorization. Do not present the one
 happy-path send as complete physical reliability coverage.
 
 Service-role credentials stay server-side. Android uses an API key plus a device
-token; Apps Script uses only the ingest secret. Never commit real tokens, secrets,
+token; Apps Script uses only scoped ingest/read secrets. Never commit real tokens, secrets,
 phone lists, or student/family data. Consent and contact-selection rules remain
 upstream; this outbound-only transport does not process STOP replies.
