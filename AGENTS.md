@@ -1,5 +1,12 @@
 # AGENTS.md
 
+> **Phase 1 database update:** Forward migrations now implement one-message
+> claims, explicit attempts, expiry fencing, and idempotent outcome reports.
+> **The existing Android client is not yet compatible; keep it stopped.**
+> See [the current RPC contract and cutover guide](docs/PHASE1_RELIABILITY.md)
+> and [database tests](supabase/tests/README.md). Earlier baseline behavior
+> described below is historical where it conflicts with that guide.
+
 ## Mission
 
 You are working on **Enrollment-SMS-SIMPLE**, a deliberately small outbound SMS transport service for enrollment/recruitment automation.
