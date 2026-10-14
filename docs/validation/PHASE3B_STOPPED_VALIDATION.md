@@ -31,3 +31,29 @@ installer. Added diagnoseSmsSheetAccess: reads only Master Leads A1 through the 
 Sheets REST API, logging HTTP status and allowlisted Google reason codes only. No
 secrets, raw responses, lead contents or write requests. Diagnosis pending. Local suite
 now has 63 passing checks, including diagnostic data minimization.
+
+## User-run stopped installation and smoke checks — 2026-10-14
+
+Execution-log screenshots supplied by the user establish:
+
+- 10:21:19 AM Pacific: Sheets REST diagnostic returned HTTP 403 with
+  PERMISSION_DENIED / SERVICE_DISABLED. Google authorization had been approved.
+- User added Google Sheets API v4 under Services. At 10:22:38 AM the diagnostic
+  returned HTTP 200, reasons empty. For default Apps Script Cloud projects, adding
+  the advanced service enables the corresponding API; standard Cloud projects need
+  explicit API enablement. Include this prerequisite before installation.
+- installSmsCrmPaused ran 10:23:04–10:24:49 AM and completed without an error.
+- validateStoppedSmsIntegration ran 10:32:27–10:32:38 AM and logged:
+
+```json
+{"schema":"crm-sms-v1","mode":"PREVIEW_ONLY","paused":true,"auto":false,"outbox":0,"producerCalls":0,"unauthorized":{"queue-enrollment-sms":401,"sms-queue-status":401},"smsTrigger":false}
+```
+
+The validator also checks an empty Submission Log and both existing SMS switches
+false before logging success. Its trigger enumeration covers triggers visible to
+its executing user, not necessarily all other owners' triggers. The two unauthorized
+HTTP requests are intentional; producerCalls=0 means no authenticated submission.
+These results supersede the earlier installer/runtime-pending entries. Remaining:
+complete compatibility-file readback, independent workbook prefix/protection checks,
+existing email/intake diagnostics and all-owner trigger inventory. Do not merge or
+enable AUTO based on this stopped check alone.

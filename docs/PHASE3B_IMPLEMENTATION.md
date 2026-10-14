@@ -12,7 +12,7 @@ The original five files are preserved in `google-apps-script/tests/baseline`. `L
 
 ## Workbook installation
 
-Run `installSmsCrmPaused` only after source verification. This creates exactly SMS Outbox and SMS Submission Log, appends the schema below, adds missing SMS Settings keys, records the cutover boundary, assigns persistent household Business Lead IDs and defaults SMS Permission to Unknown. It does not create a trigger or submit to Supabase. Re-running does not reset the cutover boundary or authorize history.
+Enable Google Sheets API v4 under Apps Script Services first (for a standard Cloud project, also enable the API in that project). Run `diagnoseSmsSheetAccess` and require HTTP 200. Run `installSmsCrmPaused` only after source verification. This creates exactly SMS Outbox and SMS Submission Log, appends the schema below, adds missing SMS Settings keys, records the cutover boundary, assigns persistent household Business Lead IDs and defaults SMS Permission to Unknown. It does not create a trigger or submit to Supabase. Re-running does not reset the cutover boundary or authorize history.
 
 The installer preserves existing column positions and existing Settings values. Existing SMS switches remain FALSE; SMS_ENGINE_MODE is PREVIEW_ONLY, SMS_AUTO_ENABLED FALSE, SMS_PAUSED TRUE, SMS_ROLLOUT_MODE ALLOWLIST with an empty allowlist. New SMS ranges are protected for the installer/operator. Existing email columns and trigger ownership remain unchanged. The journal is append-only in application code and protected from ordinary editors; a spreadsheet owner can still alter it, so it is not tamper-proof storage.
 
