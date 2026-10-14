@@ -7,7 +7,9 @@ Updated 2026-10-14 for Phase 3B manual CRM installation in progress.
 Phase 1, Phase 2 and Phase 3A are merged in main (PRs #1–#3); Phase 3A merge
 is eae77d6. Phase 3B is on reliability-phase-3b, unmerged. The user manually installed
 the SMS bundle and compatibility edits; full saved-source readback and paused
-workbook installation remain pending. 62 isolated local tests pass. No SMS sending
+workbook comparison remain pending. The paused installer, stopped SMS smoke check,
+email configuration validator and Squarespace welcome validator completed successfully.
+The user confirmed empty SMS tabs and restricted log protection. 63 isolated local tests pass. No SMS sending
 is enabled. See [implementation](docs/PHASE3B_IMPLEMENTATION.md) and
 [remaining validation gates](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
 
@@ -224,7 +226,8 @@ Do not describe this release as an unattended 24/7 service or exactly-once deliv
 
 ## Next phase
 
-Finish Phase 3B saved-source readback, paused installer and live stopped validation.
+Finish Phase 3B saved-source readback and independent workbook/evidence comparison;
+the user-run paused installer and stopped runtime validation have passed.
 Keep the producer disabled and gateway stopped. No merge until CRM validation passes.
 The user prefers to paste code manually with step-by-step guidance. All SMS behavior
 must remain in SmsIntegration.gs; LeadIntake is unchanged, and webhook intake has no
