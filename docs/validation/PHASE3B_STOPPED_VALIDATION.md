@@ -20,3 +20,14 @@ Updated 2026-10-14. **Not approved for merge or sending.**
 6. Keep PR unmerged until these stopped CRM gates pass. Controlled AUTO/physical send rollout is separate authorization.
 
 The captured baseline intentionally preserves original whitespace (including two git diff --check notices in WelcomeEmailImmediate_v3.gs); runtime source has normalized trailing whitespace.
+
+## First live installer execution — blocked, 2026-10-14
+
+User approved Google permissions. Execution began 10:18:27 AM Pacific and failed at
+10:18:45 AM with SMS_SHEET_WRITE_FAILED in smsRaw_ -> smsPatch_ ->
+smsSeedLeadsLocked_. Schema/settings and baseline properties may be partially applied;
+do not treat this as a completed migration. Producer submissions are not part of this
+installer. Added diagnoseSmsSheetAccess: reads only Master Leads A1 through the same
+Sheets REST API, logging HTTP status and allowlisted Google reason codes only. No
+secrets, raw responses, lead contents or write requests. Diagnosis pending. Local suite
+now has 63 passing checks, including diagnostic data minimization.

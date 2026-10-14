@@ -167,3 +167,27 @@ function validateStoppedSmsIntegration() {
   }
   console.log(JSON.stringify({...result,unauthorized:statuses,smsTrigger:false}));return result;
 }
+
+/** Read one header cell through the same REST API; log no body or credentials. */
+function diagnoseSmsSheetAccess() {
+  smsOperator_();
+  const url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
+    encodeURIComponent(CRM.ID) + '/values/' + encodeURIComponent("'Master Leads'!A1");
+  const response = UrlFetchApp.fetch(url, {
+    headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()},
+    muteHttpExceptions: true,
+    followRedirects: false
+  });
+  let error = {};
+  try { error = JSON.parse(response.getContentText()).error || {}; } catch (_) {}
+  const allowed = ['SERVICE_DISABLED', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT',
+    'PERMISSION_DENIED', 'UNAUTHENTICATED', 'RESOURCE_EXHAUSTED',
+    'accessNotConfigured', 'insufficientPermissions', 'forbidden'];
+  const reasons = [error.status]
+    .concat((Array.isArray(error.errors) ? error.errors : []).map(x => x.reason))
+    .concat((Array.isArray(error.details) ? error.details : []).map(x => x.reason))
+    .filter(x => allowed.includes(x));
+  const result = {httpStatus: response.getResponseCode(), reasons: [...new Set(reasons)]};
+  console.log(JSON.stringify(result));
+  return result;
+}
