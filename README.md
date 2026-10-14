@@ -39,7 +39,7 @@ frozen-payload dedupe receipts and a minimal, client-scoped `sms-queue-status`
 endpoint. Same key/payload returns the original queue ID and current state; changed
 payload returns 409. A stable dedupe key is required. Status uses a separate read
 secret; service-role credentials remain server-side. The backend is deployed and stopped production smoke tests passed; the Sheet
-producer remains disabled. Sheet/Apps Script integration remains a later phase.
+producer remains disabled. Phase 3B CRM installation is tracked separately below.
 
 ## New Supabase project setup
 
@@ -81,21 +81,18 @@ cd android-sms-gateway
 The Gradle wrapper, distribution checksum and resolved dependency versions are pinned.
 Tests use fake SMS transport and do not send real messages.
 
-## Future Google Sheet / Apps Script integration
+## CRM-integrated SMS (Phase 3B)
 
-Phase 3A supplies the backend contracts only. The existing
-`google-apps-script/EnrollmentSms.gs` helper is unchanged and is not the dynamic
-Sheet worker. Do not enable its hardcoded test helper or install triggers yet.
+The implementation lives inside the existing Ednovate CRM and Apps Script project.
+[Installation, exact schema and AUTO rollout](docs/PHASE3B_IMPLEMENTATION.md)
+describe the two new SMS tabs and appended fields in existing tabs. All SMS logic
+is installed as one `SmsIntegration.gs` bundle; existing email files have narrow
+Both compatibility changes. LeadIntake remains unchanged.
 
-The future worker must freeze phone, literal message from Sheet cells/templates,
-lead/event identifiers, stable dedupe key and schedule before submission. Retry that
-same snapshot after uncertain acceptance; use the status endpoint to reconcile by
-queue ID or dedupe key. The current helper recomputes omitted schedules, so retries
-must explicitly pass the original frozen `scheduledAt`.
-
-Apps Script will hold only endpoint URLs and ingest/read secrets in private Script
-Properties, never a service-role key. Read [the API contract](docs/PHASE3A_PRODUCER_API.md)
-for exact response shapes, status semantics and deployment prerequisites.
+The producer remains disabled. Manual source installation and stopped runtime
+validation are in progress; see [validation gates](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
+Do not run the historical `google-apps-script/EnrollmentSms.gs` test helper.
+Credentials belong only in Script Properties; no service-role key or handset token.
 
 ## Validation
 

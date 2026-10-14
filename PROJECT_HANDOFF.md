@@ -1,12 +1,17 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-13 for Phase 3A deployment and stopped production validation.
+Updated 2026-10-14 for Phase 3B manual CRM installation in progress.
 
 ## Current status
 
-Phase 1 then Phase 2 were merged into `main` (PRs #1 and #2). Phase 3A is now
-implemented on `reliability-phase-3a`, based on main commit
-`d27be2f49bcb69d2a5a99db911a5bf5a3bd7f670`, deployed and pending PR review/merge.
+Phase 1, Phase 2 and Phase 3A are merged in main (PRs #1–#3); Phase 3A merge
+is eae77d6. Phase 3B is on reliability-phase-3b, unmerged. The user manually installed
+the SMS bundle and compatibility edits; full saved-source readback and paused
+workbook installation remain pending. 62 isolated local tests pass. No SMS sending
+is enabled. See [implementation](docs/PHASE3B_IMPLEMENTATION.md) and
+[remaining validation gates](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
+
+Phase 3A is deployed.
 It adds client/device bindings, immutable ingest receipts, material-payload conflict
 handling and a separate-secret status endpoint. See the authoritative
 [Phase 3A contract, cutover and validation record](docs/PHASE3A_PRODUCER_API.md).
@@ -219,11 +224,12 @@ Do not describe this release as an unattended 24/7 service or exactly-once deliv
 
 ## Next phase
 
-Review Phase 3A with its completed deployed validation evidence before merging. Keep all producers disabled until the
-next rollout is authorized. Design/implement the dynamic Sheet worker separately:
-message cells/templates, preview/approval, frozen ledger, stable dedupe identities,
-status writeback and later email/lead integration. No Sheet or Apps Script UI has
-been created in Phase 3A. The existing helper needs frozen schedules on retries.
+Finish Phase 3B saved-source readback, paused installer and live stopped validation.
+Keep the producer disabled and gateway stopped. No merge until CRM validation passes.
+The user prefers to paste code manually with step-by-step guidance. All SMS behavior
+must remain in SmsIntegration.gs; LeadIntake is unchanged, and webhook intake has no
+SMS hook. AUTO rollout starts on the explicit test-recipient allowlist under separate
+authorization after these checks; preserve independent email controls.
 
 New migration: `20261013023711_producer_ingest_receipts.sql` (deployed).
 New tables: `sms_ingest_clients`, `sms_ingest_receipts`, both default-deny RLS.

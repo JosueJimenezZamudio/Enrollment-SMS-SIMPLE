@@ -29,6 +29,19 @@ Do not enable ingestion or start a handset session without the next rollout scop
   every state, and HTTP authentication/projection. Keep fixtures isolated from any gateway.
 - Keep Sheet/Apps Script and Android behavior unchanged unless separately scoped.
 
+## Phase 3B CRM boundary
+
+Read docs/PHASE3B_IMPLEMENTATION.md and the stopped validation record before edits.
+All SMS logic belongs in the generated SmsIntegration.gs bundle (source modules in
+google-apps-script/crm/Sms*.gs). Never install both bundle and modules. LeadIntake
+must remain unchanged; no SMS calls in email or webhook intake. Existing email paths
+only accept Both and coordinate shared-log writes. CampaignEngine hooks call SMS
+menu/preview helpers. Preserve all original column positions and email statuses.
+Freeze exact request bytes before HTTP; never rerender on retry or requeue unknown.
+Keep producer disabled, no SMS trigger or gateway start during implementation.
+Run node --test google-apps-script/tests/*.test.cjs and rebuild the bundle after edits.
+Local mocks do not establish live CRM validation; keep pending gates explicit.
+
 ## Mission
 
 You are working on **Enrollment-SMS-SIMPLE**, a deliberately small outbound SMS transport service for enrollment/recruitment automation.
