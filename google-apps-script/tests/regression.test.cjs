@@ -17,3 +17,14 @@ test('legacy column prefixes preserved and setup idempotent with exactly two SMS
 test('no onEdit sender or automatic trigger installation',()=>{const r=runtime();assert.equal(r.context.onEdit,undefined);assert.equal(r.context.onOpen(),undefined);assert.equal(r.calls.length,0);assert.equal(r.context.ScriptApp.getProjectTriggers().length,0);});
 
 test('intake unchanged and email modules do not depend on SMS helpers',()=>{const root=path.resolve(__dirname,'..');assert.equal(fs.readFileSync(path.join(root,'crm/LeadIntake.gs'),'utf8'),fs.readFileSync(path.join(root,'tests/baseline/LeadIntake.gs'),'utf8'));for(const name of ['EmailAutomation.gs','WelcomeEmailImmediate_v3.gs','SquarespaceWebHook.gs'])assert.doesNotMatch(fs.readFileSync(path.join(root,'crm',name),'utf8'),/\bsms[A-Z]\w*\s*\(/);});
+
+test('campaign preview reads SMS context once for many leads and does not cache across runs',()=>{
+ const r=runtime();fixture(r);const lead=r.rows('Master Leads')[0];
+ for(let i=0;i<27;i++)r.put('Master Leads',{...lead,'Lead ID':'PREVIEW-'+i,'Business Lead ID':'PREVIEW-'+i,Email:'preview'+i+'@example.test'});
+ let reads=0;const original=r.context.smsContext_;r.context.smsContext_=()=>{reads++;return original();};
+ r.context.previewCampaignById_('WELCOME-EMAIL');assert.equal(reads,1);assert.equal(r.rows('Campaign Preview').length,56);
+ r.patch('Master Leads','Lead ID','LEAD-ONE',{'SMS Permission':'Denied'});
+ r.context.previewCampaignById_('WELCOME-EMAIL');assert.equal(reads,2);
+ assert.match(r.rows('Campaign Preview').find(x=>x.Channel==='SMS')['SMS Validation'],/SMS_SUPPRESSED/);
+ assert.equal(r.calls.length,0);
+});

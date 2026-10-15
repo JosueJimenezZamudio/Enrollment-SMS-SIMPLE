@@ -71,16 +71,51 @@ function installSmsWorkerTrigger() {
   smsOperator_();validateSmsCrm();if(PropertiesService.getScriptProperties().getProperty('SMS_SCHEMA_READY')!=='true')throw new Error('SMS_INSTALLATION_INCOMPLETE');
   const triggers=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='runSmsWorker');if(triggers.length>1)throw new Error('MULTIPLE_SMS_TRIGGERS');if(!triggers.length)ScriptApp.newTrigger('runSmsWorker').timeBased().everyMinutes(1).create();
 }
-function smsPreviewIssues_(c,t,e,l) {
-  const ctx=smsContext_(),full=ctx.campaigns.find(x=>x['Campaign ID']===c['Campaign ID'])||c,lead=ctx.leads.find(x=>x['Lead ID']===l['Lead ID'])||l;
+function smsPreviewIssues_(c,t,e,l,context) {
+  const ctx=context||smsContext_(),full=ctx.campaigns.find(x=>x['Campaign ID']===c['Campaign ID'])||c,lead=ctx.leads.find(x=>x['Lead ID']===l['Lead ID'])||l;
   return smsEligibility_(full,ctx.templates.find(x=>x['Template ID']===full['Template ID']),e,lead,ctx.leads,ctx.s,Date.now(),'').issues;
 }
 
-function smsPreviewColumns_(campaign, lead, channel) {
+function smsPreviewColumns_(campaign, lead, channel, context) {
   if(channel!=='SMS')return Array(8).fill('');
   try {
-    const ctx=smsContext_(),c=ctx.campaigns.find(x=>x['Campaign ID']===campaign['Campaign ID']),l=ctx.leads.find(x=>x['Lead ID']===lead['Lead ID']);
+    const ctx=context||smsContext_(),c=ctx.campaigns.find(x=>x['Campaign ID']===campaign['Campaign ID']),l=ctx.leads.find(x=>x['Lead ID']===lead['Lead ID']);
     const row=smsOutboxFrom_(c,l),x=smsCandidate_(row,ctx,Date.now());
     return [row['Outbox ID'],x.mode,c['SMS Control'],x.septets===null?'':x.septets,x.scheduledAt,x.issues.join('; ')||'ELIGIBLE',x.key,x.t?x.t['SMS Revision']:''];
   } catch(_) {return ['','','','','','Invalid identity or schedule','',''];}
+}
+
+/** Read-only single-lead inspection. Never plans, freezes, approves or submits. */
+function smsInspectLeadStopped_(campaignId, leadId) {
+  smsOperator_();
+  const ctx = smsContext_();
+  if (ctx.s.SMS_ENGINE_MODE !== 'PREVIEW_ONLY' ||
+      !smsTrue_(ctx.s.SMS_PAUSED) || smsTrue_(ctx.s.SMS_AUTO_ENABLED)) {
+    throw new Error('SMS_MUST_BE_STOPPED');
+  }
+  const c = ctx.campaigns.find(x => x['Campaign ID'] === campaignId);
+  const l = ctx.leads.find(x => x['Lead ID'] === leadId);
+  if (!c || !l) throw new Error('CAMPAIGN_OR_LEAD_NOT_FOUND');
+  const t = ctx.templates.find(x => x['Template ID'] === c['Template ID']);
+  const e = ctx.events.find(x => x['Event ID'] === c['Event ID']);
+  const r = smsEligibility_(c, t, e, l, ctx.leads, ctx.s, Date.now(), '');
+  let scheduledAt = '', scheduleIssue = '';
+  try { scheduledAt = smsScheduled_(c, ctx.s, ''); }
+  catch (_) { scheduleIssue = 'MISSING_OR_INVALID_CAMPAIGN_SCHEDULE'; }
+  const allow = smsText_(ctx.s.SMS_TEST_RECIPIENT_ALLOWLIST)
+    .split(/[,\s]+/).filter(Boolean).map(smsPhone_).filter(Boolean);
+  const audience = ctx.leads.filter(x => campaignEligible_(x, c.Audience));
+  return {
+    campaignId, leadId, message: r.body, gsm7Septets: r.septets,
+    oneSegment: !!r.body && r.septets !== null && r.septets <= 160,
+    approvalMode: r.manual ? 'MANUAL' : c['SMS Approval Mode'],
+    issues: r.issues, scheduledAt, scheduleIssue,
+    recipientLast4: (r.phone || '').slice(-4),
+    businessLeadMatches: l['Business Lead ID'] === l['Lead ID'],
+    allowlistMode: ctx.s.SMS_ROLLOUT_MODE === 'ALLOWLIST',
+    allowlistContainsOnlyThisPhone: !!r.phone && allow.length === 1 && allow[0] === r.phone,
+    audienceRows: audience.length,
+    audienceRowsOutsideAllowlist: audience.filter(x => !allow.includes(smsPhone_(x.Phone))).length,
+    submissionsMade: 0
+  };
 }

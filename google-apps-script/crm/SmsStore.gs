@@ -35,7 +35,16 @@ function smsPatch_(name,idField,id,patch) {
   const sh=smsSs_().getSheetByName(name),h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   const changes=Object.entries(patch).map(([k,v])=>({index:h.indexOf(k),value:v==null?'':v,key:k})).filter(x=>smsText_(matches[0][x.key])!==smsText_(x.value)).sort((a,b)=>a.index-b.index);
   if(changes.some(x=>x.index<0))throw new Error('SMS_MISSING_COLUMN');
-  for(let i=0;i<changes.length;){const first=changes[i],values=[first.value];let j=i+1;while(j<changes.length&&changes[j].index===changes[j-1].index+1){values.push(changes[j].value);j++;}smsRaw_(name,matches[0]._row,first.index+1,[values]);i=j;}
+  if(!changes.length)return;
+  // Patch only changed cells; never rewrite intervening email/user columns.
+  const data=changes.map(x=>({range:"'"+name.replace(/'/g,"''")+"'!"+smsColumn_(x.index+1)+matches[0]._row,values:[[x.value]]}));
+  const url='https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(CRM.ID)+'/values:batchUpdate';
+  const res=UrlFetchApp.fetch(url,{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},payload:JSON.stringify({valueInputOption:'RAW',data}),muteHttpExceptions:true,followRedirects:false});
+  if(res.getResponseCode()!==200)throw new Error('SMS_SHEET_WRITE_FAILED');
+  SpreadsheetApp.flush();
+  const first=changes[0].index,last=changes[changes.length-1].index;
+  const actual=sh.getRange(matches[0]._row,first+1,1,last-first+1).getValues()[0];
+  if(changes.some(x=>smsText_(actual[x.index-first])!==smsText_(x.value)))throw new Error('SMS_SHEET_WRITE_UNVERIFIED');
 
 }
 function smsAppend_(name,obj) {

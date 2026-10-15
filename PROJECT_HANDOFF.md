@@ -1,17 +1,22 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-14 for Phase 3B manual CRM installation in progress.
+Updated 2026-10-14 after the first controlled CRM SMS and review.
 
 ## Current status
 
-Phase 1, Phase 2 and Phase 3A are merged in main (PRs #1–#3); Phase 3A merge
-is eae77d6. Phase 3B is on reliability-phase-3b, unmerged. The user manually installed
-the SMS bundle and compatibility edits; full saved-source readback and paused
-workbook comparison remain pending. The paused installer, stopped SMS smoke check,
-email configuration validator and Squarespace welcome validator completed successfully.
-The user confirmed empty SMS tabs and restricted log protection. 63 isolated local tests pass. No SMS sending
-is enabled. See [implementation](docs/PHASE3B_IMPLEMENTATION.md) and
-[remaining validation gates](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
+Phase 3B remains on reliability-phase-3b, unmerged. One controlled CRM SMS passed:
+user confirmed one receipt and Sheet sent status; backend shows one attempt/log;
+phone journal retained the exact ACK. Producer is disabled, gateway stopped and
+SEND_SMS revoked. User chose to retain LIVE/AUTO/campaign settings with SMS_PAUSED
+TRUE. No further sending or merge authorized. See
+[controlled test evidence](docs/validation/PHASE3B_FIRST_CRM_SMS_RESULT.md).
+
+Saved compatibility-file readback passed; LeadIntake is unchanged. The live test
+used the 69-test bundle. Review adds batched RAW row patches with readback and one
+SMS context per campaign preview; 77 local tests pass. These latest performance
+changes are not yet installed or verified in live Apps Script. No SMS trigger was
+installed. See [review results](docs/validation/PHASE3B_REVIEW.md) and
+[installation history](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
 
 Phase 3A is deployed.
 It adds client/device bindings, immutable ingest receipts, material-payload conflict
@@ -65,7 +70,7 @@ This project is independent of Nuntium and the other Supabase projects. Never
 reuse their queues, tokens, credentials, tables, or deployments.
 
 Phase 1 and synthetic RPC fixtures were removed after their tests. The live
-database now intentionally retains the one real test's terminal evidence:
+database retains the original test below plus the controlled CRM test linked above:
 queue `5db1073a-021f-4b99-847f-1cba68c56af8`, attempt
 `6ac33d07-1fbe-4bd4-b4e0-161446511185`, both sent, one log. Do not reset or replay it.
 

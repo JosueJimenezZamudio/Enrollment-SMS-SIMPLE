@@ -83,6 +83,13 @@ Tests use fake SMS transport and do not send real messages.
 
 ## CRM-integrated SMS (Phase 3B)
 
+One controlled CRM SMS passed through physical receipt and Sheet status writeback.
+The producer is disabled and handset stopped. The latest review has 77 passing
+local tests; performance updates still need manual Apps Script installation and
+stopped validation. See [review](docs/validation/PHASE3B_REVIEW.md) and
+[test evidence](docs/validation/PHASE3B_FIRST_CRM_SMS_RESULT.md).
+
+
 The implementation lives inside the existing Ednovate CRM and Apps Script project.
 [Installation, exact schema and AUTO rollout](docs/PHASE3B_IMPLEMENTATION.md)
 describe the two new SMS tabs and appended fields in existing tabs. All SMS logic

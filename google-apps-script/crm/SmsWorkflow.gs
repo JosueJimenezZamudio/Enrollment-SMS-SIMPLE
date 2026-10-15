@@ -20,6 +20,11 @@ function smsOutboxFrom_(c,l) {
 }
 function smsPlanLocked_() {
   smsSeedLeadsLocked_(false);const ctx=smsContext_(),now=Date.now();let created=0;
+  if(!['ALLOWLIST','PRODUCTION'].includes(ctx.s.SMS_ROLLOUT_MODE))throw new Error('INVALID_ROLLOUT_MODE');
+  const allowedPhones=new Set(smsText_(ctx.s.SMS_TEST_RECIPIENT_ALLOWLIST)
+    .split(/[,\s]+/).filter(Boolean).map(smsPhone_).filter(Boolean));
+  const inRollout=l=>ctx.s.SMS_ROLLOUT_MODE==='PRODUCTION'||
+    (!!smsPhone_(l.Phone)&&allowedPhones.has(smsPhone_(l.Phone)));
   for(const c of ctx.campaigns) {
     if(c.Enabled!=='Yes'||c['SMS Control']!=='READY'||!smsChannelIncludes_(c.Channel,'SMS'))continue;
     const t=ctx.templates.find(x=>x['Template ID']===c['Template ID']);
@@ -33,7 +38,7 @@ function smsPlanLocked_() {
       let plan=journal.find(e=>e['Journal Event ID']===planId);
       if(!plan) {
         if(now-at>smsLimit_(ctx.s,'SMS_MAX_CAMPAIGN_LATENESS_MINUTES',1440)*60000){smsPatch_('Campaigns','Campaign ID',c['Campaign ID'],{'SMS Status':'WINDOW_EXPIRED'});continue;}
-        const ids=ctx.leads.filter(l=>campaignEligible_(l,c.Audience)&&l['Lead ID']===l['Business Lead ID']).map(l=>l['Lead ID']);
+        const ids=ctx.leads.filter(l=>inRollout(l)&&campaignEligible_(l,c.Audience)&&l['Lead ID']===l['Business Lead ID']).map(l=>l['Lead ID']);
         plan=smsEvent_('AUDIENCE_FROZEN',{'Policy Revision':c['SMS Policy Revision'],'Source Snapshot JSON':JSON.stringify({campaignId:c['Campaign ID'],fingerprint:c['SMS Policy Fingerprint'],leadIds:ids})},planId);
       }
       const saved=JSON.parse(plan['Source Snapshot JSON']);
@@ -42,7 +47,7 @@ function smsPlanLocked_() {
     } else if(welcome) {
       recipients=ctx.leads.filter(l=>l['Lead ID']===l['Business Lead ID']&&Date.parse(l['CRM First Seen At'])>Date.parse(ctx.s.WELCOME_SMS_START_AT));
     } else continue;
-    for(const l of recipients) {
+    for(const l of recipients.filter(inRollout)) {
       const row=smsOutboxFrom_(c,l),prior=smsRows_('SMS Outbox').filter(r=>r['Dedupe Key']===row['Dedupe Key']);
       if(prior.length>1)throw new Error('SMS_DUPLICATE_OUTBOX_IDENTITY');
       if(prior.length)continue;

@@ -81,11 +81,12 @@ function previewCampaignById_(campaignId) {
   const timestamp = Utilities.formatDate(new Date(),
     CAMPAIGN_ENGINE.DISPLAY_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
   const rows = [];
+  const smsContext = channels.includes('SMS') ? smsContext_() : null;
 
   for (const lead of recipients) {
     const language = campaignLanguage_(lead['Preferred Language']);
     for (const channel of channels) {
-      const issues = campaignIssues_(campaign, template, event, lead, channel, language);
+      const issues = campaignIssues_(campaign, template, event, lead, channel, language, smsContext);
       const message = campaignMessage_(campaign, template, channel, language);
       const values = campaignMergeValues_(campaign, event, lead, language);
       const renderedSubject = channel === 'Email' ? campaignRender_(message.subject, values) : {text:'',issues:[]};
@@ -100,7 +101,7 @@ function previewCampaignById_(campaignId) {
         renderedBody.text,
         uniqueIssues.length ? 'Needs review' : 'Preview ready',
         uniqueIssues.join('; '),
-        ...smsPreviewColumns_(campaign, lead, channel)
+        ...smsPreviewColumns_(campaign, lead, channel, smsContext)
       ]);
       if (rows.length > CAMPAIGN_ENGINE.PREVIEW_LIMIT) {
         throw new Error('Preview exceeds ' + CAMPAIGN_ENGINE.PREVIEW_LIMIT +
@@ -131,7 +132,7 @@ function previewCampaignById_(campaignId) {
   return { campaignId, previewRows: rows.length, needsReview: flagged, messagesSent: 0 };
 }
 
-function campaignIssues_(campaign, template, event, lead, channel, language) {
+function campaignIssues_(campaign, template, event, lead, channel, language, smsContext) {
   const issues = [];
   const mode = campaign['Message Mode'];
   if (!['Template', 'Custom', 'Template + Override'].includes(mode)) {
@@ -161,7 +162,7 @@ function campaignIssues_(campaign, template, event, lead, channel, language) {
   if (channel === 'SMS' && !campaignValidPhone_(lead['Phone'])) {
     issues.push('Invalid US phone number');
   }
-  if (channel === 'SMS') issues.push(...smsPreviewIssues_(campaign,template,event,lead));
+  if (channel === 'SMS') issues.push(...smsPreviewIssues_(campaign,template,event,lead,smsContext));
   if (language === 'EN' && !/^(english|en)$/i.test(lead['Preferred Language'])) {
     issues.push('Unknown language; defaulted to English');
   }

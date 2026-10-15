@@ -36,3 +36,51 @@ test('scheduled audience is frozen and late arrivals are not added',()=>{const r
 test('conflicting saved household identity blocks both leads even with different phones',()=>{const r=start(),l=r.rows('Master Leads')[0];r.put('Master Leads',{...l,'Lead ID':'SECOND','Business Lead ID':'SECOND',Phone:'+12025550124'});r.setSetting('SMS_TEST_RECIPIENT_ALLOWLIST','+12025550123,+12025550124');r.context.runSmsWorker();assert.equal(posts(r).length,0);});
 test('blocked draft batches rotate rather than starving later eligible rows',()=>{const r=start(),l=r.rows('Master Leads')[0];for(let i=0;i<8;i++)r.put('Master Leads',{...l,'Lead ID':'OTHER-'+i,'Business Lead ID':'OTHER-'+i,Email:'other'+i+'@example.test','SMS Permission':'Unknown'});r.patch('Master Leads','Lead ID','LEAD-ONE',{'SMS Permission':'Unknown'});r.context.runSmsWorker();r.context.runSmsWorker();r.patch('Master Leads','Lead ID','OTHER-7',{'SMS Permission':'Allowed'});for(let i=0;i<3;i++)r.context.runSmsWorker();assert.equal(posts(r).length,1);assert.equal(JSON.parse(posts(r)[0].body).leadId,'OTHER-7');});
 test('read-only Sheets diagnostic exposes only safe codes and no credentials/content',()=>{const r=start();let calls=0;r.context.UrlFetchApp.fetch=(url,options)=>{calls++;assert.ok(url.endsWith(encodeURIComponent("'Master Leads'!A1")));assert.equal(options.payload,undefined);assert.equal(options.followRedirects,false);return response(403,{error:{status:'PERMISSION_DENIED',message:'sensitive body',details:[{reason:'SERVICE_DISABLED',metadata:{secret:'private'}}]}});};const result=r.context.diagnoseSmsSheetAccess();assert.equal(result.httpStatus,403);assert.deepEqual(normalized(result.reasons),['PERMISSION_DENIED','SERVICE_DISABLED']);assert.equal(calls,1);assert.doesNotMatch(r.logs.join(''),/sensitive|private|test-google-token/);assert.equal(r.rows('SMS Outbox').length,0);});
+
+test('single-lead stopped inspection renders once without writes or HTTP and reports broad audience',()=>{
+ const r=start();r.setSetting('SMS_ENGINE_MODE','PREVIEW_ONLY');r.setSetting('SMS_PAUSED','TRUE');r.setSetting('SMS_AUTO_ENABLED','FALSE');
+ r.patch('Campaigns','Campaign ID','WELCOME-EMAIL',{Trigger:'Scheduled',Enabled:'No','SMS Control':'DRAFT'});
+ r.put('Master Leads',{'Lead ID':'OTHER','Business Lead ID':'OTHER','Active Lead':'Yes',Phone:'+12025550124'});
+ const before=JSON.stringify([...r.book].map(([k,v])=>[k,v.data])),calls=r.calls.length;
+ let reads=0;const original=r.context.smsContext_;r.context.smsContext_=()=>{reads++;return original();};
+ const x=r.context.smsInspectLeadStopped_('WELCOME-EMAIL','LEAD-ONE');
+ assert.equal(x.message,'Hello Alex, welcome.');assert.equal(x.oneSegment,true);assert.equal(x.allowlistContainsOnlyThisPhone,true);
+ assert.equal(x.audienceRowsOutsideAllowlist,1);assert.equal(x.scheduleIssue,'MISSING_OR_INVALID_CAMPAIGN_SCHEDULE');
+ assert.ok(x.issues.includes('CAMPAIGN_NOT_ARMED'));assert.equal(reads,1);assert.equal(r.calls.length,calls);
+ assert.equal(JSON.stringify([...r.book].map(([k,v])=>[k,v.data])),before);
+});
+test('single-lead inspection rejects live mode and unknown identity',()=>{
+ const r=start();assert.throws(()=>r.context.smsInspectLeadStopped_('WELCOME-EMAIL','LEAD-ONE'),/SMS_MUST_BE_STOPPED/);
+ r.setSetting('SMS_ENGINE_MODE','PREVIEW_ONLY');r.setSetting('SMS_PAUSED','TRUE');r.setSetting('SMS_AUTO_ENABLED','FALSE');
+ assert.throws(()=>r.context.smsInspectLeadStopped_('WELCOME-EMAIL','missing'),/CAMPAIGN_OR_LEAD_NOT_FOUND/);
+});
+
+function rolloutFixture(){const r=start(),l=r.rows('Master Leads')[0];r.put('Master Leads',{...l,'Lead ID':'OTHER','Business Lead ID':'OTHER',Email:'other@example.test',Phone:'+12025550124'});return r;}
+test('allowlist planning excludes other welcome recipients before outbox creation',()=>{const r=rolloutFixture();r.context.planSmsCrm();assert.deepEqual(r.rows('SMS Outbox').map(x=>x['Lead ID']),['LEAD-ONE']);assert.equal(apiCalls(r).length,0);});
+test('scheduled audience freezes only allowlisted recipients and cannot grow on expansion',()=>{const r=rolloutFixture();r.patch('Campaigns','Campaign ID','WELCOME-EMAIL',{Trigger:'Scheduled','Send Date':'10/13/2026','Send Time':'2:59 PM'});r.active('Campaigns');r.context.armSelectedSmsCampaign();r.context.planSmsCrm();const event=r.rows('SMS Submission Log').find(x=>x['Journal Event Type']==='AUDIENCE_FROZEN');assert.deepEqual(JSON.parse(event['Source Snapshot JSON']).leadIds,['LEAD-ONE']);r.setSetting('SMS_TEST_RECIPIENT_ALLOWLIST','+12025550123,+12025550124');r.context.planSmsCrm();assert.equal(r.rows('SMS Outbox').length,1);assert.equal(apiCalls(r).length,0);});
+test('empty or malformed allowlist creates no outbox rows; invalid mode fails closed',()=>{for(const list of ['', 'invalid']){const r=rolloutFixture();r.setSetting('SMS_TEST_RECIPIENT_ALLOWLIST',list);r.context.planSmsCrm();assert.equal(r.rows('SMS Outbox').length,0);}const r=rolloutFixture();r.setSetting('SMS_ROLLOUT_MODE','typo');assert.throws(()=>r.context.planSmsCrm(),/INVALID_ROLLOUT_MODE/);assert.equal(r.rows('SMS Outbox').length,0);});
+test('production planning retains existing audience behavior',()=>{const r=rolloutFixture();r.setSetting('SMS_ROLLOUT_MODE','PRODUCTION');r.context.planSmsCrm();assert.equal(r.rows('SMS Outbox').length,2);assert.equal(apiCalls(r).length,0);});
+
+test('sparse row patch batches RAW writes, preserves gaps, and skips unchanged values',()=>{
+ const r=start(),original=r.context.UrlFetchApp.fetch;let writes=0;
+ r.patch('Master Leads','Lead ID','LEAD-ONE',{'Email Opt Out':'Yes'});
+ r.context.UrlFetchApp.fetch=(url,opts)=>{writes++;assert.ok(url.endsWith('/values:batchUpdate'));const p=JSON.parse(opts.payload);assert.equal(p.valueInputOption,'RAW');assert.equal(p.data.length,2);return original(url,opts);};
+ const patch={'Parent Name':'=literal','SMS Permission Source':'updated permission'};
+ r.context.smsPatch_('Master Leads','Lead ID','LEAD-ONE',patch);
+ r.context.smsPatch_('Master Leads','Lead ID','LEAD-ONE',patch);
+ assert.equal(writes,1);assert.equal(r.rows('Master Leads')[0]['Email Opt Out'],'Yes');assert.equal(r.rows('Master Leads')[0]['Parent Name'],'=literal');
+});
+test('batch write errors and incomplete readback stop before any producer request',()=>{
+ for(const status of [200,503]){const r=start(),original=r.context.UrlFetchApp.fetch;r.context.UrlFetchApp.fetch=(url,opts)=>url.endsWith('/values:batchUpdate')?response(status,{}):original(url,opts);
+ assert.throws(()=>r.context.runSmsWorker(),status===200?/SMS_SHEET_WRITE_UNVERIFIED/:/SMS_SHEET_WRITE_FAILED/);assert.equal(posts(r).length,0);}
+});
+for(const mutation of ['allowlist','permission','optout','phone','pause'])test('uncertain request respects changed '+mutation+' before retry',()=>{
+ const r=start();r.transport(()=>response(503,{}));r.context.runSmsWorker();const body=posts(r)[0].body;
+ if(mutation==='allowlist')r.setSetting('SMS_TEST_RECIPIENT_ALLOWLIST','+12025550124');
+ if(mutation==='pause')r.setSetting('SMS_PAUSED','TRUE');
+ if(mutation==='permission')r.patch('Master Leads','Lead ID','LEAD-ONE',{'SMS Permission':'Denied'});
+ if(mutation==='optout')r.patch('Master Leads','Lead ID','LEAD-ONE',{'SMS Opt Out':'Yes'});
+ if(mutation==='phone')r.patch('Master Leads','Lead ID','LEAD-ONE',{Phone:'+12025550124'});
+ r.clock.now+=1200000;r.context.runSmsWorker();assert.equal(posts(r).length,1);
+ assert.equal(r.rows('SMS Submission Log').find(x=>x['Journal Event Type']==='PREPARED')['Frozen Request JSON'],body);
+});

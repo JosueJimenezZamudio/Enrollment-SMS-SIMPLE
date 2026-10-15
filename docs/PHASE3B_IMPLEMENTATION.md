@@ -1,6 +1,8 @@
 # Phase 3B CRM implementation and stopped installation
 
-Status: local implementation tested; user is installing the code manually in the existing Apps Script project. Complete saved-source readback and stopped runtime validation before merging or enabling anything. No new workbook, no new web-app URL, no Android changes.
+Status: installed and one controlled CRM SMS verified, then stopped. Review fixes
+are tested locally but not installed. See validation/PHASE3B_FIRST_CRM_SMS_RESULT.md
+and validation/PHASE3B_REVIEW.md. No merge or ongoing sending authorized.
 
 ## SMS boundary
 
@@ -87,3 +89,26 @@ Local tests do not replace saved-source readback, actual Google OAuth/RAW Sheet 
 ### Settings (append rows in A:C)
 
 `SMS_ENGINE_MODE` = `PREVIEW_ONLY`; `SMS_AUTO_ENABLED` = `FALSE`; `SMS_PAUSED` = `TRUE`; `SMS_ROLLOUT_MODE` = `ALLOWLIST`; `SMS_TEST_RECIPIENT_ALLOWLIST` = `(blank)`; `WELCOME_SMS_START_AT` = `(blank)`; `SMS_WELCOME_SOURCES` = `Google Form,Squarespace`; `SMS_TIMEZONE` = `America/Los_Angeles`; `SMS_MAX_NEW_PER_RUN` = `5`; `SMS_MAX_STATUS_PER_RUN` = `20`; `SMS_MAX_RUN_SECONDS` = `240`; `SMS_HTTP_RETRY_LIMIT` = `6`; `SMS_MAX_CAMPAIGN_LATENESS_MINUTES` = `240`; `SMS_MAX_WELCOME_AGE_DAYS` = `7`; `SMS_RULESET_VERSION` = `crm-sms-v1`.
+
+### Allowlist planner boundary
+
+In ALLOWLIST mode, scheduled audience snapshots include only canonical recipients
+whose normalized phone is allowlisted. Both welcome and scheduled planning recheck
+this filter before creating outbox rows, including when reading older snapshots.
+Empty/malformed allowlists produce no outbox recipients; an invalid rollout mode
+throws. PRODUCTION audience behavior is unchanged. Expanding the allowlist does not
+expand an already frozen scheduled audience. Existing outbox rows are not deleted;
+submission-time allowlist enforcement remains independent.
+
+## Review performance changes
+
+Row patches use Sheets values:batchUpdate with RAW values, changing only specified
+cells in one HTTP request and checking every changed value in one readback. Journal
+appends remain individually durable before dispatch. Campaign preview passes one
+context through both SMS helpers, scoped to that invocation; worker authorization
+continues to read fresh state. API contract:
+https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/batchUpdate
+
+Install both the rebuilt SmsIntegration.gs and updated CampaignEngine.gs to obtain
+both improvements. No migration or installer rerun is needed. Live latency has not
+been measured on this revision; retain the existing pause and disabled producer.

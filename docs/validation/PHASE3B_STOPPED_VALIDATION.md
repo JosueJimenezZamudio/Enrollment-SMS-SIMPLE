@@ -1,6 +1,11 @@
 # Phase 3B validation status
 
-Updated 2026-10-14. **Not approved for merge or sending.**
+Updated 2026-10-14. **Historical installation record; no further sends or merge authorized.**
+
+Current results supersede pending items recorded chronologically below: saved-source
+readback and one controlled CRM send passed. See [physical result](PHASE3B_FIRST_CRM_SMS_RESULT.md)
+and [review](PHASE3B_REVIEW.md). Latest local suite: 77 passing. Performance changes
+remain uninstalled; complete independent workbook comparison remains unverified.
 
 - Branch: reliability-phase-3b, based on main eae77d6 (Phase 3A PR #3 merge).
 - Local source tests: 63 passing, zero failed. Uses isolated service substitutes; no external mail/SMS calls.
@@ -79,3 +84,43 @@ These are user-reported workbook checks, not an independent complete workbook di
 A subsequent read-only backend check returned producer_enabled=false, queue_count=1,
 attempt_count=1. No new queue rows or attempts are indicated by these aggregate counts.
 No gateway session was started or sending authorized during these checks.
+
+## Focused stopped preview — 2026-10-14
+
+Full CampaignEngine readback differed only in formatting and equivalent single-statement
+blocks. User-pasted EmailAutomation, WelcomeEmailImmediate_v3 and SquarespaceWebHook
+matched tested logic; LeadIntake matched the baseline byte for byte. Pasted SMS runtime
+matched except for the omitted optional Sheets-access diagnostic and generated comment.
+User confirmed the project saved. Later temporary diagnostic helpers were added manually.
+
+User screenshots: authenticated empty-object probes returned 400 for both endpoints at
+15:19:58 Pacific after earlier fetch-permission exceptions. Unauthenticated fetch returned
+401 at 15:19:27. The stopped validator passed again at 15:20:41: PREVIEW_ONLY, paused=true,
+auto=false, outbox=0, producerCalls=0, both unauthorized probes=401, smsTrigger=false.
+These probes did not create queue items; this is not an authorized ingest/send test.
+
+User canceled the broad campaign preview after prolonged execution. Repeated per-lead
+smsContext_ reads are a likely performance cause; no timing profile was captured. The
+broad preview has not been fixed or validated for production-sized lead lists.
+Added smsInspectLeadStopped_ for a single identified lead: one context read, no writes,
+no HTTP, no approvals, no frozen request, explicit schedule issues and broad-audience
+counts. Two new tests verify no mutation/HTTP and stopped-mode/identity guards; all 65
+local tests pass. Live focused-check result remains pending. Preparation is not send
+approval; producer and gateway must remain stopped.
+
+## Focused live preview and allowlist planning fix
+
+User screenshots on October 14 show the focused preview completing in 4–7 seconds.
+After correcting the test lead language, the rendered message is 62 GSM-7 septets,
+one segment, AUTO; business identity matches and the allowlist contains only the
+test recipient. Schedule resolves to 2026-10-15T00:00:00.000Z (October 14, 17:00
+Los Angeles). Following user policy approval, POLICY_CHANGED disappeared; only
+CAMPAIGN_NOT_ARMED remains with Enabled=No. Zero submissions are reported. Audience
+counts: 28 total, 27 outside allowlist. The snapshot is not a frozen send request.
+
+Planner now filters out non-allowlisted recipients before scheduled snapshot and
+outbox creation. Four new isolated tests cover welcome exclusion, frozen scheduled
+audience/allowlist expansion, empty/malformed lists and invalid mode, and unchanged
+production behavior. All 69 tests pass. Replacement smsPlanLocked_ supplied for
+manual installation; live installed-code verification remains pending. No gateway,
+producer enablement, or SMS send authorized by this preparation.

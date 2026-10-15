@@ -174,7 +174,16 @@ function smsPatch_(name,idField,id,patch) {
   const sh=smsSs_().getSheetByName(name),h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   const changes=Object.entries(patch).map(([k,v])=>({index:h.indexOf(k),value:v==null?'':v,key:k})).filter(x=>smsText_(matches[0][x.key])!==smsText_(x.value)).sort((a,b)=>a.index-b.index);
   if(changes.some(x=>x.index<0))throw new Error('SMS_MISSING_COLUMN');
-  for(let i=0;i<changes.length;){const first=changes[i],values=[first.value];let j=i+1;while(j<changes.length&&changes[j].index===changes[j-1].index+1){values.push(changes[j].value);j++;}smsRaw_(name,matches[0]._row,first.index+1,[values]);i=j;}
+  if(!changes.length)return;
+  // Patch only changed cells; never rewrite intervening email/user columns.
+  const data=changes.map(x=>({range:"'"+name.replace(/'/g,"''")+"'!"+smsColumn_(x.index+1)+matches[0]._row,values:[[x.value]]}));
+  const url='https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(CRM.ID)+'/values:batchUpdate';
+  const res=UrlFetchApp.fetch(url,{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},payload:JSON.stringify({valueInputOption:'RAW',data}),muteHttpExceptions:true,followRedirects:false});
+  if(res.getResponseCode()!==200)throw new Error('SMS_SHEET_WRITE_FAILED');
+  SpreadsheetApp.flush();
+  const first=changes[0].index,last=changes[changes.length-1].index;
+  const actual=sh.getRange(matches[0]._row,first+1,1,last-first+1).getValues()[0];
+  if(changes.some(x=>smsText_(actual[x.index-first])!==smsText_(x.value)))throw new Error('SMS_SHEET_WRITE_UNVERIFIED');
 
 }
 function smsAppend_(name,obj) {
@@ -355,6 +364,11 @@ function smsOutboxFrom_(c,l) {
 }
 function smsPlanLocked_() {
   smsSeedLeadsLocked_(false);const ctx=smsContext_(),now=Date.now();let created=0;
+  if(!['ALLOWLIST','PRODUCTION'].includes(ctx.s.SMS_ROLLOUT_MODE))throw new Error('INVALID_ROLLOUT_MODE');
+  const allowedPhones=new Set(smsText_(ctx.s.SMS_TEST_RECIPIENT_ALLOWLIST)
+    .split(/[,\s]+/).filter(Boolean).map(smsPhone_).filter(Boolean));
+  const inRollout=l=>ctx.s.SMS_ROLLOUT_MODE==='PRODUCTION'||
+    (!!smsPhone_(l.Phone)&&allowedPhones.has(smsPhone_(l.Phone)));
   for(const c of ctx.campaigns) {
     if(c.Enabled!=='Yes'||c['SMS Control']!=='READY'||!smsChannelIncludes_(c.Channel,'SMS'))continue;
     const t=ctx.templates.find(x=>x['Template ID']===c['Template ID']);
@@ -368,7 +382,7 @@ function smsPlanLocked_() {
       let plan=journal.find(e=>e['Journal Event ID']===planId);
       if(!plan) {
         if(now-at>smsLimit_(ctx.s,'SMS_MAX_CAMPAIGN_LATENESS_MINUTES',1440)*60000){smsPatch_('Campaigns','Campaign ID',c['Campaign ID'],{'SMS Status':'WINDOW_EXPIRED'});continue;}
-        const ids=ctx.leads.filter(l=>campaignEligible_(l,c.Audience)&&l['Lead ID']===l['Business Lead ID']).map(l=>l['Lead ID']);
+        const ids=ctx.leads.filter(l=>inRollout(l)&&campaignEligible_(l,c.Audience)&&l['Lead ID']===l['Business Lead ID']).map(l=>l['Lead ID']);
         plan=smsEvent_('AUDIENCE_FROZEN',{'Policy Revision':c['SMS Policy Revision'],'Source Snapshot JSON':JSON.stringify({campaignId:c['Campaign ID'],fingerprint:c['SMS Policy Fingerprint'],leadIds:ids})},planId);
       }
       const saved=JSON.parse(plan['Source Snapshot JSON']);
@@ -377,7 +391,7 @@ function smsPlanLocked_() {
     } else if(welcome) {
       recipients=ctx.leads.filter(l=>l['Lead ID']===l['Business Lead ID']&&Date.parse(l['CRM First Seen At'])>Date.parse(ctx.s.WELCOME_SMS_START_AT));
     } else continue;
-    for(const l of recipients) {
+    for(const l of recipients.filter(inRollout)) {
       const row=smsOutboxFrom_(c,l),prior=smsRows_('SMS Outbox').filter(r=>r['Dedupe Key']===row['Dedupe Key']);
       if(prior.length>1)throw new Error('SMS_DUPLICATE_OUTBOX_IDENTITY');
       if(prior.length)continue;
@@ -609,16 +623,51 @@ function installSmsWorkerTrigger() {
   smsOperator_();validateSmsCrm();if(PropertiesService.getScriptProperties().getProperty('SMS_SCHEMA_READY')!=='true')throw new Error('SMS_INSTALLATION_INCOMPLETE');
   const triggers=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='runSmsWorker');if(triggers.length>1)throw new Error('MULTIPLE_SMS_TRIGGERS');if(!triggers.length)ScriptApp.newTrigger('runSmsWorker').timeBased().everyMinutes(1).create();
 }
-function smsPreviewIssues_(c,t,e,l) {
-  const ctx=smsContext_(),full=ctx.campaigns.find(x=>x['Campaign ID']===c['Campaign ID'])||c,lead=ctx.leads.find(x=>x['Lead ID']===l['Lead ID'])||l;
+function smsPreviewIssues_(c,t,e,l,context) {
+  const ctx=context||smsContext_(),full=ctx.campaigns.find(x=>x['Campaign ID']===c['Campaign ID'])||c,lead=ctx.leads.find(x=>x['Lead ID']===l['Lead ID'])||l;
   return smsEligibility_(full,ctx.templates.find(x=>x['Template ID']===full['Template ID']),e,lead,ctx.leads,ctx.s,Date.now(),'').issues;
 }
 
-function smsPreviewColumns_(campaign, lead, channel) {
+function smsPreviewColumns_(campaign, lead, channel, context) {
   if(channel!=='SMS')return Array(8).fill('');
   try {
-    const ctx=smsContext_(),c=ctx.campaigns.find(x=>x['Campaign ID']===campaign['Campaign ID']),l=ctx.leads.find(x=>x['Lead ID']===lead['Lead ID']);
+    const ctx=context||smsContext_(),c=ctx.campaigns.find(x=>x['Campaign ID']===campaign['Campaign ID']),l=ctx.leads.find(x=>x['Lead ID']===lead['Lead ID']);
     const row=smsOutboxFrom_(c,l),x=smsCandidate_(row,ctx,Date.now());
     return [row['Outbox ID'],x.mode,c['SMS Control'],x.septets===null?'':x.septets,x.scheduledAt,x.issues.join('; ')||'ELIGIBLE',x.key,x.t?x.t['SMS Revision']:''];
   } catch(_) {return ['','','','','','Invalid identity or schedule','',''];}
+}
+
+/** Read-only single-lead inspection. Never plans, freezes, approves or submits. */
+function smsInspectLeadStopped_(campaignId, leadId) {
+  smsOperator_();
+  const ctx = smsContext_();
+  if (ctx.s.SMS_ENGINE_MODE !== 'PREVIEW_ONLY' ||
+      !smsTrue_(ctx.s.SMS_PAUSED) || smsTrue_(ctx.s.SMS_AUTO_ENABLED)) {
+    throw new Error('SMS_MUST_BE_STOPPED');
+  }
+  const c = ctx.campaigns.find(x => x['Campaign ID'] === campaignId);
+  const l = ctx.leads.find(x => x['Lead ID'] === leadId);
+  if (!c || !l) throw new Error('CAMPAIGN_OR_LEAD_NOT_FOUND');
+  const t = ctx.templates.find(x => x['Template ID'] === c['Template ID']);
+  const e = ctx.events.find(x => x['Event ID'] === c['Event ID']);
+  const r = smsEligibility_(c, t, e, l, ctx.leads, ctx.s, Date.now(), '');
+  let scheduledAt = '', scheduleIssue = '';
+  try { scheduledAt = smsScheduled_(c, ctx.s, ''); }
+  catch (_) { scheduleIssue = 'MISSING_OR_INVALID_CAMPAIGN_SCHEDULE'; }
+  const allow = smsText_(ctx.s.SMS_TEST_RECIPIENT_ALLOWLIST)
+    .split(/[,\s]+/).filter(Boolean).map(smsPhone_).filter(Boolean);
+  const audience = ctx.leads.filter(x => campaignEligible_(x, c.Audience));
+  return {
+    campaignId, leadId, message: r.body, gsm7Septets: r.septets,
+    oneSegment: !!r.body && r.septets !== null && r.septets <= 160,
+    approvalMode: r.manual ? 'MANUAL' : c['SMS Approval Mode'],
+    issues: r.issues, scheduledAt, scheduleIssue,
+    recipientLast4: (r.phone || '').slice(-4),
+    businessLeadMatches: l['Business Lead ID'] === l['Lead ID'],
+    allowlistMode: ctx.s.SMS_ROLLOUT_MODE === 'ALLOWLIST',
+    allowlistContainsOnlyThisPhone: !!r.phone && allow.length === 1 && allow[0] === r.phone,
+    audienceRows: audience.length,
+    audienceRowsOutsideAllowlist: audience.filter(x => !allow.includes(smsPhone_(x.Phone))).length,
+    submissionsMade: 0
+  };
 }
