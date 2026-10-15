@@ -1,12 +1,25 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-13 for Phase 3A deployment and stopped production validation.
+Updated 2026-10-14 after the first controlled CRM SMS and review.
 
 ## Current status
 
-Phase 1 then Phase 2 were merged into `main` (PRs #1 and #2). Phase 3A is now
-implemented on `reliability-phase-3a`, based on main commit
-`d27be2f49bcb69d2a5a99db911a5bf5a3bd7f670`, deployed and pending PR review/merge.
+Phase 3B remains on reliability-phase-3b, unmerged. One controlled CRM SMS passed:
+user confirmed one receipt and Sheet sent status; backend shows one attempt/log;
+phone journal retained the exact ACK. Producer is disabled, gateway stopped and
+SEND_SMS revoked. User chose to retain LIVE/AUTO/campaign settings with SMS_PAUSED
+TRUE. No further sending or merge authorized. See
+[controlled test evidence](docs/validation/PHASE3B_FIRST_CRM_SMS_RESULT.md).
+
+Saved compatibility-file readback passed; LeadIntake is unchanged. The live test
+used the 69-test bundle. Review adds batched RAW row patches with readback and one
+SMS context per campaign preview; 77 local tests pass. These latest performance
+changes were saved by the user and checked live: correct preview in about 20
+seconds, and stopped batch-write diagnostic PASS in 2.604 seconds with zero SMS. No SMS trigger was
+installed. See [review results](docs/validation/PHASE3B_REVIEW.md) and
+[installation history](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
+
+Phase 3A is deployed.
 It adds client/device bindings, immutable ingest receipts, material-payload conflict
 handling and a separate-secret status endpoint. See the authoritative
 [Phase 3A contract, cutover and validation record](docs/PHASE3A_PRODUCER_API.md).
@@ -58,7 +71,7 @@ This project is independent of Nuntium and the other Supabase projects. Never
 reuse their queues, tokens, credentials, tables, or deployments.
 
 Phase 1 and synthetic RPC fixtures were removed after their tests. The live
-database now intentionally retains the one real test's terminal evidence:
+database retains the original test below plus the controlled CRM test linked above:
 queue `5db1073a-021f-4b99-847f-1cba68c56af8`, attempt
 `6ac33d07-1fbe-4bd4-b4e0-161446511185`, both sent, one log. Do not reset or replay it.
 
@@ -219,11 +232,13 @@ Do not describe this release as an unattended 24/7 service or exactly-once deliv
 
 ## Next phase
 
-Review Phase 3A with its completed deployed validation evidence before merging. Keep all producers disabled until the
-next rollout is authorized. Design/implement the dynamic Sheet worker separately:
-message cells/templates, preview/approval, frozen ledger, stable dedupe identities,
-status writeback and later email/lead integration. No Sheet or Apps Script UI has
-been created in Phase 3A. The existing helper needs frozen schedules on retries.
+Finish Phase 3B saved-source readback and independent workbook/evidence comparison;
+the user-run paused installer and stopped runtime validation have passed.
+Keep the producer disabled and gateway stopped. No merge until CRM validation passes.
+The user prefers to paste code manually with step-by-step guidance. All SMS behavior
+must remain in SmsIntegration.gs; LeadIntake is unchanged, and webhook intake has no
+SMS hook. AUTO rollout starts on the explicit test-recipient allowlist under separate
+authorization after these checks; preserve independent email controls.
 
 New migration: `20261013023711_producer_ingest_receipts.sql` (deployed).
 New tables: `sms_ingest_clients`, `sms_ingest_receipts`, both default-deny RLS.
