@@ -154,3 +154,18 @@ test('changing language after freeze never rerenders a submission retry',()=>{
   assert.equal(posts(r)[1].body,original);
   assert.equal(JSON.parse(original).message,'Hello Alex, welcome.');
 });
+
+test('live language validator is read-only and fingerprints the installed implementation',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const r=start();
+  const before=JSON.stringify([...r.book].map(([name,sheet])=>[name,sheet.data]));
+  r.run(fs.readFileSync(path.join(__dirname,'../tools/ValidateSmsLanguageNoSend.gs'),'utf8'));
+  const result=r.context.validateSmsLanguageInstallationNoSend();
+  assert.equal(result.result,'PASS');
+  assert.equal(result.functionsChecked,98);
+  assert.equal(result.checks.length,8);
+  assert.equal(r.calls.length,0);
+  assert.equal(JSON.stringify([...r.book].map(([name,sheet])=>[name,sheet.data])),before);
+  r.context.smsLanguage_=()=> 'EN';
+  assert.throws(()=>r.context.validateSmsLanguageInstallationNoSend(),/INSTALLED_CODE_MISMATCH/);
+});
