@@ -45,8 +45,10 @@ final class AndroidSmsTransport implements GatewayCoordinator.Transport {
         != PackageManager.PERMISSION_GRANTED)
       throw new GatewayCoordinator.PreflightFailure("SEND_SMS permission unavailable");
     int sim = SubscriptionManager.getDefaultSmsSubscriptionId();
-    if (sim < 0 || sim == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID)
-      throw new GatewayCoordinator.PreflightFailure("Choose an explicit default SMS SIM");
+    if (sim < 0
+        || sim == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID
+        || sim != GatewayLifecycle.boundSim(context))
+      throw new GatewayCoordinator.PreflightFailure("Dedicated SMS SIM is missing or changed");
     if (s.phone == null
         || !s.phone.matches("\\+1[0-9]{10}")
         || s.body == null

@@ -35,14 +35,14 @@ public class MainActivity extends Activity {
     scroll.addView(root);
     setContentView(scroll);
     TextView title = new TextView(this);
-    title.setText("Enrollment SMS Gateway · Phase 2");
+    title.setText("Enrollment SMS Gateway · Continuous");
     title.setTextSize(23);
     root.addView(title);
     TextView help = new TextView(this);
     help.setText(
-        "A new process never resumes sending automatically. Save and verify a profile, then"
-            + " explicitly start a session (maximum one hour). Saved outcomes can upload while"
-            + " sending is stopped.");
+        "Android 14: continuous operation resumes after process death and reboot after unlock. Keep"
+            + " this dedicated phone powered, online and battery-unrestricted. Unknown attempts are"
+            + " reconciled, never resent. Android 15 retains platform time limits.");
     root.addView(help);
     url = field(root, "HTTPS Supabase URL", false);
     key = field(root, "Publishable / anon API key", true);
@@ -56,8 +56,14 @@ public class MainActivity extends Activity {
     poll.setText(String.valueOf(config.pollSeconds));
     button(root, "Test connection (does not save or start)", () -> verify(false));
     button(root, "Save and verify profile (keeps sending stopped)", () -> verify(true));
-    button(root, "Start one-hour gateway session", this::startSession);
+    button(root, "Enable continuous gateway", this::startSession);
     button(root, "Stop sending; retain and report outcomes", this::stopSession);
+    button(
+        root,
+        "Battery optimization settings",
+        () ->
+            startActivity(
+                new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)));
     status = new TextView(this);
     root.addView(status);
   }
@@ -153,11 +159,15 @@ public class MainActivity extends Activity {
         connectionStatus = "After granting permissions, press Start again.";
         return;
       }
-      DispatchGate.start();
+      GatewayLifecycle.enable(this);
       startForegroundService(new Intent(this, SmsGatewayService.class));
       connectionStatus = "";
     } catch (Exception e) {
-      DispatchGate.stop();
+      try {
+        GatewayLifecycle.disable(this);
+      } catch (Exception failure) {
+        GatewayApplication.storageFailed = true;
+      }
       connectionStatus =
           "Cannot start: verify configuration, journal health and Android service availability.";
     }
@@ -165,7 +175,11 @@ public class MainActivity extends Activity {
   }
 
   private void stopSession() {
-    DispatchGate.stop();
+    try {
+      GatewayLifecycle.disable(this);
+    } catch (Exception failure) {
+      GatewayApplication.storageFailed = true;
+    }
     stopService(new Intent(this, SmsGatewayService.class));
     try {
       GatewayJournal.get(this).status("Stopped; saved work retained");
@@ -184,7 +198,14 @@ public class MainActivity extends Activity {
       GatewayJournal.Slot slot = j.active();
       status.setText(
           (GatewayApplication.storageFailed ? "Storage failure; sending stopped" : j.status())
-              + "\nSession: "
+              + "\nContinuous operation: "
+              + (GatewayLifecycle.enabled(this) ? "enabled" : "disabled")
+              + "\nBattery exemption: "
+              + getSystemService(PowerManager.class)
+                  .isIgnoringBatteryOptimizations(getPackageName())
+              + "\nBound SMS SIM: "
+              + GatewayLifecycle.boundSim(this)
+              + "\nService: "
               + (DispatchGate.running() ? "active" : "stopped")
               + "\nPending reports: "
               + j.pending().size()
@@ -205,6 +226,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onResume() {
     super.onResume();
+    if (!DispatchGate.running()) GatewayLifecycle.restore(this);
     main.post(refresh);
   }
 

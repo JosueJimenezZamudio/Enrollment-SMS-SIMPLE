@@ -10,7 +10,11 @@ public class GatewayApplication extends Application {
     super.onCreate();
     try {
       GatewayConfig.initialize(this);
-      GatewayJournal.get(this).status("Stopped; saved work retained");
+      GatewayJournal.get(this)
+          .status(
+              GatewayLifecycle.enabled(this)
+                  ? "Restoring enabled gateway; reconciling saved work"
+                  : "Stopped; saved work retained");
       OutcomeReportWorker.schedulePending(this);
     } catch (Exception e) {
       storageFailed = true;

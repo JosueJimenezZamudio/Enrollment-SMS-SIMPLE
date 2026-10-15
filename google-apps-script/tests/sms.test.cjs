@@ -84,3 +84,21 @@ for(const mutation of ['allowlist','permission','optout','phone','pause'])test('
  r.clock.now+=1200000;r.context.runSmsWorker();assert.equal(posts(r).length,1);
  assert.equal(r.rows('SMS Submission Log').find(x=>x['Journal Event Type']==='PREPARED')['Frozen Request JSON'],body);
 });
+
+ test('automation installs one worker and one independent status trigger idempotently',()=>{
+ const r=start();r.context.installSmsAutomationTriggers();r.context.installSmsAutomationTriggers();
+ const names=r.context.ScriptApp.getProjectTriggers().map(t=>t.getHandlerFunction());
+ assert.deepEqual(Array.from(names).sort(),['pollSmsStatuses','runSmsWorker']);assert.equal(posts(r).length,0);
+ });
+ test('independent status job updates accepted work while paused without ingestion',()=>{
+ const r=start();r.context.runSmsWorker();r.setSetting('SMS_PAUSED','TRUE');r.clock.now+=1000000;
+ const before=posts(r).length;r.context.pollSmsStatuses();assert.equal(posts(r).length,before);
+ assert.ok(r.rows('SMS Submission Log').some(e=>e['Journal Event Type']==='STATUS_OBSERVED'));
+ });
+test('status trigger remains usable after a worker planning failure',()=>{
+ const r=start();r.context.runSmsWorker();const before=posts(r).length;
+ r.context.smsPlanLocked_=()=>{throw Error('planner unavailable');};
+ assert.throws(()=>r.context.runSmsWorker(),/planner unavailable/);
+ r.clock.now+=1000000;const result=r.context.pollSmsStatuses();
+ assert.ok(result.checked>0);assert.equal(posts(r).length,before);
+});
