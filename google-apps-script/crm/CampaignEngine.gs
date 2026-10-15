@@ -84,13 +84,16 @@ function previewCampaignById_(campaignId) {
   const smsContext = channels.includes('SMS') ? smsContext_() : null;
 
   for (const lead of recipients) {
-    const language = campaignLanguage_(lead['Preferred Language']);
     for (const channel of channels) {
+      const language = channel === 'SMS' ? smsLanguage_(lead['Preferred Language']) : campaignLanguage_(lead['Preferred Language']);
       const issues = campaignIssues_(campaign, template, event, lead, channel, language, smsContext);
       const message = campaignMessage_(campaign, template, channel, language);
       const values = campaignMergeValues_(campaign, event, lead, language);
       const renderedSubject = channel === 'Email' ? campaignRender_(message.subject, values) : {text:'',issues:[]};
-      const renderedBody = campaignRender_(message.body, values);
+      const smsRendered = channel === 'SMS' ? smsRender_(campaign, template, event, lead, '') : null;
+      const renderedBody = smsRendered
+        ? {text:smsRendered.body, issues:smsRendered.issues}
+        : campaignRender_(message.body, values);
       issues.push(...renderedSubject.issues, ...renderedBody.issues);
       const recipient = channel === 'Email' ? lead['Email'] : lead['Phone'];
       const uniqueIssues = [...new Set(issues)];
@@ -163,7 +166,7 @@ function campaignIssues_(campaign, template, event, lead, channel, language, sms
     issues.push('Invalid US phone number');
   }
   if (channel === 'SMS') issues.push(...smsPreviewIssues_(campaign,template,event,lead,smsContext));
-  if (language === 'EN' && !/^(english|en)$/i.test(lead['Preferred Language'])) {
+  if (channel !== 'SMS' && language === 'EN' && !/^(english|en)$/i.test(lead['Preferred Language'])) {
     issues.push('Unknown language; defaulted to English');
   }
   return issues;

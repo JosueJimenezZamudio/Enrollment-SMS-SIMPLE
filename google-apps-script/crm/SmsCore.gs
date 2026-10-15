@@ -31,16 +31,16 @@ function smsBusiness_(c,l) {
   if(parts.some(v=>!smsText_(v).trim()))throw new Error('MISSING_BUSINESS_IDENTITY');
   const key='crm-event-v1:'+smsJsonHash_(parts); return {key,dedupe:'enrollment:sms:v1:'+smsJsonHash_([key,'SMS'])};
 }
-function smsLanguageValid_(v) { return /^(english|en|español|espanol|spanish|es)$/i.test(smsText_(v).trim()); }
+// Only an explicit Spanish preference selects ES; all other values default to EN.
+function smsLanguage_(v) { return /^(español|espanol|spanish|es)$/i.test(smsText_(v).trim()) ? 'ES' : 'EN'; }
 function smsEffectiveManual_(c,lang,custom) {
   return !!smsText_(custom).trim() || c['Message Mode']==='Custom' || (c['Message Mode']==='Template + Override' && !!smsText_(c['SMS '+lang+' (custom/override)']).trim());
 }
 function smsRender_(c,t,e,l,custom) {
-  const lang=campaignLanguage_(l['Preferred Language']); const vars=campaignMergeValues_(c,e,l,lang);
+  const lang=smsLanguage_(l['Preferred Language']); const vars=campaignMergeValues_(c,e,l,lang);
   const result=smsText_(custom).trim()?{text:smsText_(custom),issues:[]}:campaignRender_(campaignMessage_(c,t,'SMS',lang).body,vars);
   const body=result.text.trim(), septets=smsSeptets_(body), issues=result.issues.slice();
   if(!body)issues.push('EMPTY_MESSAGE'); if(septets===null)issues.push('NON_GSM7'); else if(septets>160)issues.push('OVER_ONE_SEGMENT');
-  if(!smsLanguageValid_(l['Preferred Language']))issues.push('UNKNOWN_LANGUAGE');
   if(!smsText_(custom).trim() && t && c['Message Mode']!=='Custom') {
     smsText_(t['SMS Required Variables']).split(',').map(x=>x.trim()).filter(Boolean).forEach(k=>{if(!Object.prototype.hasOwnProperty.call(vars,k)||!smsText_(vars[k]).trim())issues.push('MISSING_VARIABLE:'+k);});
   }
