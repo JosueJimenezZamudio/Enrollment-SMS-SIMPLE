@@ -19,7 +19,7 @@ for(const code of [401,404,409,500,503])test('HTTP '+code+' preserves snapshot a
 test('HOLD after uncertain HTTP prevents retry but permits scoped read',()=>{const r=start();r.transport(()=>response(503,{}));r.context.runSmsWorker();r.active('SMS Outbox');r.context.holdSelectedSms();r.clock.now+=1200000;r.context.runSmsWorker();assert.equal(posts(r).length,1);assert.ok(apiCalls(r).some(x=>x.url.endsWith('sms-queue-status')));});
 test('missing or corrupt snapshot stops rather than rerendering',()=>{const r=start();r.context.runSmsWorker();const log=r.book.get('SMS Submission Log'),h=log.data[0],ix=h.indexOf('Snapshot Hash'),p=log.data.find(x=>x[h.indexOf('Journal Event Type')]==='PREPARED');p[ix]='bad';assert.throws(()=>r.context.runSmsWorker(),/CORRUPT/);assert.equal(posts(r).length,1);});
 test('deleted Outbox retains receipt and does not generate a second queue',()=>{const r=start();r.context.runSmsWorker();r.book.get('SMS Outbox').data.splice(1);r.context.runSmsWorker();assert.equal(posts(r).length,1);assert.equal(r.backend.size,1);});
-for(const [field,value]of [['SMS Permission','Unknown'],['SMS Opt Out','Yes'],['Active Lead','No'],['Preferred Language',''],['Business Lead ID','OLDER'],['CRM First Seen At','2026-10-12T00:00:00Z']])test('AUTO blocks '+field,()=>{const r=start();r.patch('Master Leads','Lead ID','LEAD-ONE',{[field]:value});r.context.runSmsWorker();assert.equal(posts(r).length,0);});
+for(const [field,value]of [['SMS Permission','Unknown'],['SMS Opt Out','Yes'],['Active Lead','No'],['Business Lead ID','OLDER'],['CRM First Seen At','2026-10-12T00:00:00Z']])test('AUTO blocks '+field,()=>{const r=start();r.patch('Master Leads','Lead ID','LEAD-ONE',{[field]:value});r.context.runSmsWorker();assert.equal(posts(r).length,0);});
 test('explicit UTC and local DST schedule validation',()=>{const r=runtime();assert.equal(r.context.smsWallToIso_('Oct 15, 2026','9:00 AM','America/Los_Angeles'),'2026-10-15T16:00:00.000Z');assert.throws(()=>r.context.smsWallToIso_('2026-11-01','1:30 AM','America/Los_Angeles'),/AMBIGUOUS/);assert.throws(()=>r.context.smsWallToIso_('2026-03-08','2:30 AM','America/Los_Angeles'),/AMBIGUOUS/);assert.throws(()=>r.context.smsIso_('2026-02-30T12:00:00Z'),/CALENDAR/);});
 test('RAW journal storage preserves literal leading equals and byte hash',()=>{const r=start();r.context.smsLocked_(()=>r.context.smsEvent_('NOTE',{'Safe Error':'=not-a-formula'}));assert.equal(r.rows('SMS Submission Log').slice(-1)[0]['Safe Error'],'=not-a-formula');});
 test('email completion does not stop SMS',()=>{const r=start();r.patch('Campaigns','Campaign ID','WELCOME-EMAIL',{Status:'Complete'});r.context.runSmsWorker();assert.equal(posts(r).length,1);assert.equal(r.rows('Campaigns')[0].Status,'Complete');});
@@ -101,4 +101,56 @@ test('status trigger remains usable after a worker planning failure',()=>{
  assert.throws(()=>r.context.runSmsWorker(),/planner unavailable/);
  r.clock.now+=1000000;const result=r.context.pollSmsStatuses();
  assert.ok(result.checked>0);assert.equal(posts(r).length,before);
+});
+
+for (const [label, preference, language, message] of [
+  ['blank', '', 'EN', 'Hello Alex, welcome.'],
+  ['undefined', undefined, 'EN', 'Hello Alex, welcome.'],
+  ['unrecognized', 'Estonian', 'EN', 'Hello Alex, welcome.'],
+  ['English', 'English', 'EN', 'Hello Alex, welcome.'],
+  ['Spanish', 'Spanish', 'ES', 'Hola Alex.'],
+  ['Spanish code', 'es', 'ES', 'Hola Alex.'],
+  ['Spanish accented alias', ' Español ', 'ES', 'Hola Alex.'],
+  ['Spanish alias', 'Espanol', 'ES', 'Hola Alex.'],
+]) test('SMS language stays consistent through preview, AUTO, freeze and submission: '+label, () => {
+  const r=start();
+  const lead=r.rows('Master Leads')[0];
+  lead['Preferred Language']=preference;
+  const ctx=r.context.smsContext_();
+  const rendered=r.context.smsEligibility_(ctx.campaigns[0],ctx.templates[0],null,lead,[lead],ctx.s,r.clock.now,'');
+  assert.equal(rendered.lang,language);
+  assert.equal(rendered.body,message);
+  assert.deepEqual(normalized(rendered.issues),[]);
+  r.patch('Master Leads','Lead ID','LEAD-ONE',{'Preferred Language':preference});
+  r.context.previewCampaignById_('WELCOME-EMAIL');
+  const preview=r.rows('Campaign Preview').find(x=>x.Channel==='SMS');
+  assert.equal(preview.Language,language);
+  assert.equal(preview['Message Preview'],message);
+  assert.doesNotMatch(preview.Notes,/language/i);
+  assert.equal(posts(r).length,0);
+  r.context.runSmsWorker();
+  const outbox=r.rows('SMS Outbox')[0];
+  assert.equal(outbox.Language,language);
+  assert.equal(outbox.Eligibility,'ELIGIBLE');
+  assert.equal(outbox.Preview,message);
+  assert.equal(outbox['Frozen Message'],message);
+  const prepared=r.rows('SMS Submission Log').find(x=>x['Journal Event Type']==='PREPARED');
+  assert.equal(JSON.parse(prepared['Source Snapshot JSON']).language,language);
+  assert.equal(JSON.parse(prepared['Frozen Request JSON']).message,message);
+  assert.equal(posts(r).length,1);
+  assert.equal(posts(r)[0].body,prepared['Frozen Request JSON']);
+});
+
+test('changing language after freeze never rerenders a submission retry',()=>{
+  const r=start();
+  r.patch('Master Leads','Lead ID','LEAD-ONE',{'Preferred Language':''});
+  r.transport(()=>response(503,{}));
+  r.context.runSmsWorker();
+  const original=posts(r)[0].body;
+  r.patch('Master Leads','Lead ID','LEAD-ONE',{'Preferred Language':'Spanish'});
+  r.clock.now+=120000;
+  r.context.runSmsWorker();
+  assert.equal(posts(r).length,2);
+  assert.equal(posts(r)[1].body,original);
+  assert.equal(JSON.parse(original).message,'Hello Alex, welcome.');
 });

@@ -26,7 +26,7 @@ Before controlled rollout, the operator must privately configure SMS_API_BASE_UR
 
 ## Approval and recovery
 
-AUTO requires an explicitly armed campaign policy, approved unchanged SMS template, eligible canonical household lead, recorded SMS permission, allowed source, valid language, valid US phone, one GSM-7 segment, active rollout switches and allowlist membership. Custom messages, effective template overrides and row schedule overrides require MANUAL. Manual approval binds a preview fingerprint; editing its inputs invalidates it. Merely editing a cell does not invoke HTTP.
+AUTO requires an explicitly armed campaign policy, approved unchanged SMS template, eligible canonical household lead, recorded SMS permission, allowed source, resolved language, valid US phone, one GSM-7 segment, active rollout switches and allowlist membership. Custom messages, effective template overrides and row schedule overrides require MANUAL. Manual approval binds a preview fingerprint; editing its inputs invalidates it. Merely editing a cell does not invoke HTTP.
 
 The journal records PREPARED with exact six-field request JSON and SHA-256 before HTTP. The dedupe identity hashes CRM ID, Business Lead ID, Campaign ID, Business Event Type, Event Instance and channel; clocks, content and row position never generate a new identity. Scheduled audiences are frozen once. Immediate scheduledAt is assigned once at preparation. All later HTTP retries use the stored string, not regenerated JSON.
 
@@ -113,3 +113,14 @@ Install both the rebuilt SmsIntegration.gs and updated CampaignEngine.gs to obta
 both improvements. No migration or installer rerun is needed. User reported preview completion in about 20 seconds; the stopped batch-write
 diagnostic passed in 2.604 seconds. Full worker throughput remains unmeasured.
 Retain the existing pause and disabled producer.
+
+## SMS language fallback
+
+The shared `smsLanguage_` resolver selects Spanish for explicit `Spanish`, `ES`,
+`Español`, or `Espanol` (case-insensitive, trimmed). English, blank, undefined,
+and unrecognized preferences resolve to English. SMS campaign preview and AUTO
+eligibility use this resolver through the SMS renderer; preparation freezes the
+resulting language and message, and submission/retries use the frozen request
+bytes without resolving language again. Existing frozen submissions are unchanged.
+Email language behavior is unchanged. Deploy both `crm/CampaignEngine.gs` and the
+rebuilt `dist/SmsIntegration.gs` together to apply this preview/worker change.
