@@ -1,7 +1,7 @@
 # Phase 3B CRM implementation and stopped installation
 
 Status: installed and one controlled CRM SMS verified, then stopped. Review fixes
-are tested locally but not installed. See validation/PHASE3B_FIRST_CRM_SMS_RESULT.md
+passed 77 local tests and user-run live preview/stopped batch-write checks. See validation/PHASE3B_FIRST_CRM_SMS_RESULT.md
 and validation/PHASE3B_REVIEW.md. No merge or ongoing sending authorized.
 
 ## SMS boundary
@@ -110,5 +110,6 @@ continues to read fresh state. API contract:
 https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/batchUpdate
 
 Install both the rebuilt SmsIntegration.gs and updated CampaignEngine.gs to obtain
-both improvements. No migration or installer rerun is needed. Live latency has not
-been measured on this revision; retain the existing pause and disabled producer.
+both improvements. No migration or installer rerun is needed. User reported preview completion in about 20 seconds; the stopped batch-write
+diagnostic passed in 2.604 seconds. Full worker throughput remains unmeasured.
+Retain the existing pause and disabled producer.

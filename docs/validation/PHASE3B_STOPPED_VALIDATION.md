@@ -5,7 +5,8 @@ Updated 2026-10-14. **Historical installation record; no further sends or merge 
 Current results supersede pending items recorded chronologically below: saved-source
 readback and one controlled CRM send passed. See [physical result](PHASE3B_FIRST_CRM_SMS_RESULT.md)
 and [review](PHASE3B_REVIEW.md). Latest local suite: 77 passing. Performance changes
-remain uninstalled; complete independent workbook comparison remains unverified.
+were saved and passed live preview and stopped batch-write checks (see review).
+Complete independent workbook comparison remains unverified.
 
 - Branch: reliability-phase-3b, based on main eae77d6 (Phase 3A PR #3 merge).
 - Local source tests: 63 passing, zero failed. Uses isolated service substitutes; no external mail/SMS calls.

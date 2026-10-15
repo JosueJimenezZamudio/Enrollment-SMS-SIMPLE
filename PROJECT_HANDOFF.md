@@ -14,7 +14,8 @@ TRUE. No further sending or merge authorized. See
 Saved compatibility-file readback passed; LeadIntake is unchanged. The live test
 used the 69-test bundle. Review adds batched RAW row patches with readback and one
 SMS context per campaign preview; 77 local tests pass. These latest performance
-changes are not yet installed or verified in live Apps Script. No SMS trigger was
+changes were saved by the user and checked live: correct preview in about 20
+seconds, and stopped batch-write diagnostic PASS in 2.604 seconds with zero SMS. No SMS trigger was
 installed. See [review results](docs/validation/PHASE3B_REVIEW.md) and
 [installation history](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
 

@@ -85,8 +85,8 @@ Tests use fake SMS transport and do not send real messages.
 
 One controlled CRM SMS passed through physical receipt and Sheet status writeback.
 The producer is disabled and handset stopped. The latest review has 77 passing
-local tests; performance updates still need manual Apps Script installation and
-stopped validation. See [review](docs/validation/PHASE3B_REVIEW.md) and
+local tests; the user installed both updated scripts and verified the preview
+and stopped batch-write check live. See [review](docs/validation/PHASE3B_REVIEW.md) and
 [test evidence](docs/validation/PHASE3B_FIRST_CRM_SMS_RESULT.md).
 
 
@@ -96,8 +96,8 @@ describe the two new SMS tabs and appended fields in existing tabs. All SMS logi
 is installed as one `SmsIntegration.gs` bundle; existing email files have narrow
 Both compatibility changes. LeadIntake remains unchanged.
 
-The producer remains disabled. Manual source installation and stopped runtime
-validation are in progress; see [validation gates](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
+The producer remains disabled. The controlled send and performance checks are complete;
+broader rollout remains unapproved; see [validation gates](docs/validation/PHASE3B_STOPPED_VALIDATION.md).
 Do not run the historical `google-apps-script/EnrollmentSms.gs` test helper.
 Credentials belong only in Script Properties; no service-role key or handset token.
 
