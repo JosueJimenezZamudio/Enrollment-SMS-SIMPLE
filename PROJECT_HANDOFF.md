@@ -1,6 +1,18 @@
 # Enrollment-SMS-SIMPLE — project handoff
 
-Updated 2026-10-14 after the first controlled CRM SMS and review.
+Updated 2026-10-14 for continuous gateway lifecycle work.
+
+## Continuous lifecycle branch
+
+PR #4 was merged as 07d9bcc9c7a286daeab3a412d7c7ed7509ccf8b9; its tree matches
+the validated Phase 3B head. New work is on production-gateway-lifecycle.
+The dedicated handset is Android 14 / API 34. See
+[implementation and rollout](docs/PRODUCTION_GATEWAY_LIFECYCLE.md) and
+[no-send validation](docs/validation/CONTINUOUS_LIFECYCLE.md).
+Producer remains disabled; SMS_PAUSED remains TRUE. The updated APK was installed
+and process/reboot recovery tested with SEND_SMS app-op blocked, then stopped.
+Apps Script bundle and paired recurring triggers still require live installation.
+The historical Phase 3B status below describes the pre-merge state.
 
 ## Current status
 

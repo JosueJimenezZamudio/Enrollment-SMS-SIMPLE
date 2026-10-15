@@ -11,8 +11,8 @@ public class SmsGatewayService extends Service {
   private final Handler main = new Handler(Looper.getMainLooper());
   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
   private boolean started;
-  private final Runnable sessionEnd =
-      () -> stopSession("Session ended; start another session explicitly");
+  private volatile boolean destroyed;
+  private PowerManager.WakeLock wakeLock;
 
   @Override
   public void onCreate() {
@@ -21,18 +21,39 @@ public class SmsGatewayService extends Service {
         .createNotificationChannel(
             new NotificationChannel(
                 CHANNEL, "Enrollment SMS Gateway", NotificationManager.IMPORTANCE_LOW));
-    startForeground(9101, notification("Starting bounded gateway session"));
+    startForeground(9101, notification("Restoring gateway; checking saved work"));
   }
 
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
-    if (!DispatchGate.running() || GatewayApplication.storageFailed) {
+    if (intent != null && "STOP".equals(intent.getAction())) {
+      stopSession("Stopped by operator");
+      return START_NOT_STICKY;
+    }
+    if (!GatewayLifecycle.enabled(this) || GatewayApplication.storageFailed) {
       stopSelf();
       return START_NOT_STICKY;
     }
     if (!started) {
       started = true;
       GatewayConfig config = GatewayConfig.load(this);
+      try {
+        GatewayJournal.get(this).requireProfile(config);
+        if (!config.isReady() || !GatewayJournal.get(this).attention().isEmpty()) {
+          stopSession("Attention required; saved work retained");
+          return START_NOT_STICKY;
+        }
+      } catch (Exception error) {
+        stopSession("Journal unavailable; stopped");
+        return START_NOT_STICKY;
+      }
+      // Invalidate old in-process continuations before restoring a service owner.
+      DispatchGate.stop();
+      wakeLock =
+          getSystemService(PowerManager.class)
+              .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnrollmentSMS:polling");
+      wakeLock.setReferenceCounted(false);
+      wakeLock.acquire(TimeUnit.MINUTES.toMillis(10));
       GatewayCoordinator coordinator =
           new GatewayCoordinator(
               GatewayJournal.get(this),
@@ -40,30 +61,36 @@ public class SmsGatewayService extends Service {
               new AndroidSmsTransport(this),
               SystemClock::elapsedRealtime,
               DispatchGate.start());
-      // An app-level one-hour cap complements (and never resets) the Android 15 platform budget.
-      main.postDelayed(sessionEnd, TimeUnit.HOURS.toMillis(1));
+      // No app session deadline. Android 15 still invokes onTimeout for its platform budget.
       executor.scheduleWithFixedDelay(
           () -> {
             try {
+              if (destroyed) return;
+              if (!GatewayLifecycle.enabled(this)) {
+                postStop("Stopped by operator");
+                return;
+              }
+              wakeLock.acquire(TimeUnit.MINUTES.toMillis(10));
               OutcomeReportWorker.schedulePending(this);
               coordinator.tick();
               if (!DispatchGate.running() || GatewayApplication.storageFailed) {
-                main.post(() -> stopSession("Stopped; attention required"));
+                postStop("Stopped; attention required");
                 return;
               }
               getSystemService(NotificationManager.class)
                   .notify(9101, notification(GatewayJournal.get(this).status()));
             } catch (Exception e) {
+              if (destroyed) return;
               DispatchGate.stop();
               GatewayApplication.storageFailed = true;
-              main.post(() -> stopSession("Storage or scheduling error; stopped"));
+              postStop("Storage or scheduling error; stopped");
             }
           },
           0,
           config.pollSeconds,
           TimeUnit.SECONDS);
     }
-    return START_NOT_STICKY;
+    return START_STICKY;
   }
 
   @Override
@@ -72,9 +99,20 @@ public class SmsGatewayService extends Service {
     stopSession("Android foreground-service time budget exhausted");
   }
 
+  private void postStop(String reason) {
+    main.post(
+        () -> {
+          if (!destroyed) stopSession(reason);
+        });
+  }
+
   private void stopSession(String reason) {
-    DispatchGate.stop();
-    main.removeCallbacks(sessionEnd);
+    try {
+      GatewayLifecycle.disable(this);
+    } catch (Exception ignored) {
+      GatewayApplication.storageFailed = true;
+    }
+    releaseWakeLock();
     executor.shutdownNow();
     stopForeground(STOP_FOREGROUND_REMOVE);
     stopSelf();
@@ -87,10 +125,16 @@ public class SmsGatewayService extends Service {
 
   @Override
   public void onDestroy() {
+    destroyed = true;
+    main.removeCallbacksAndMessages(null);
     DispatchGate.stop();
-    main.removeCallbacks(sessionEnd);
+    releaseWakeLock();
     executor.shutdownNow();
     super.onDestroy();
+  }
+
+  private void releaseWakeLock() {
+    if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
   }
 
   @Override
@@ -110,6 +154,16 @@ public class SmsGatewayService extends Service {
         .setContentText(text)
         .setSmallIcon(android.R.drawable.stat_sys_upload_done)
         .setOngoing(true)
+        .addAction(
+            new Notification.Action.Builder(
+                    null,
+                    "Stop",
+                    PendingIntent.getService(
+                        this,
+                        1,
+                        new Intent(this, SmsGatewayService.class).setAction("STOP"),
+                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
+                .build())
         .setContentIntent(open)
         .build();
   }

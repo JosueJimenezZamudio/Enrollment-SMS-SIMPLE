@@ -67,9 +67,17 @@ function approveSelectedManualSms() {
 }
 function holdSelectedSms() { smsOperator_();const row=smsSelected_('SMS Outbox','Outbox ID');smsLocked_(()=>{smsEvent_('HOLD_REQUESTED',{'Outbox ID':row['Outbox ID'],'Submission ID':row['Submission ID']||''});smsPatch_('SMS Outbox','Outbox ID',row['Outbox ID'],{'Send Control':'HOLD'});}); }
 /** Install only during authorized rollout; never called by workbook setup. */
-function installSmsWorkerTrigger() {
-  smsOperator_();validateSmsCrm();if(PropertiesService.getScriptProperties().getProperty('SMS_SCHEMA_READY')!=='true')throw new Error('SMS_INSTALLATION_INCOMPLETE');
-  const triggers=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='runSmsWorker');if(triggers.length>1)throw new Error('MULTIPLE_SMS_TRIGGERS');if(!triggers.length)ScriptApp.newTrigger('runSmsWorker').timeBased().everyMinutes(1).create();
+function installSmsWorkerTrigger() { return installSmsAutomationTriggers(); }
+/** Independent status trigger keeps writeback alive when planning/ingest fails or is paused. */
+function installSmsAutomationTriggers() {
+  smsOperator_();validateSmsCrm();
+  if(PropertiesService.getScriptProperties().getProperty('SMS_SCHEMA_READY')!=='true')throw new Error('SMS_INSTALLATION_INCOMPLETE');
+  return smsLocked_(()=>{
+    const handlers=['runSmsWorker','pollSmsStatuses'],triggers=ScriptApp.getProjectTriggers();
+    for(const name of handlers)if(triggers.filter(t=>t.getHandlerFunction()===name).length>1)throw new Error('MULTIPLE_SMS_TRIGGERS');
+    for(const name of handlers)if(!triggers.some(t=>t.getHandlerFunction()===name))ScriptApp.newTrigger(name).timeBased().everyMinutes(1).create();
+    return {worker:true,status:true};
+  });
 }
 function smsPreviewIssues_(c,t,e,l,context) {
   const ctx=context||smsContext_(),full=ctx.campaigns.find(x=>x['Campaign ID']===c['Campaign ID'])||c,lead=ctx.leads.find(x=>x['Lead ID']===l['Lead ID'])||l;

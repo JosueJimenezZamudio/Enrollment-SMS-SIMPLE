@@ -60,7 +60,7 @@ final class GatewayConfig {
   /** Must be called with a successful heartbeat identity, while the session is stopped. */
   static void saveVerified(Context c, GatewayConfig candidate, String device) throws Exception {
     synchronized (DispatchGate.LOCK) {
-      if (DispatchGate.running())
+      if (DispatchGate.running() || GatewayLifecycle.enabled(c))
         throw new IllegalStateException("Stop the session before editing configuration");
       GatewayJournal j = GatewayJournal.get(c);
       GatewayConfig old = load(c);
@@ -93,9 +93,12 @@ final class GatewayConfig {
     boolean missing =
         !p.getString("profile_id", "").isEmpty()
             && !c.getDatabasePath("gateway-journal.db").exists();
-    // Never inherit old enabled=true or revive a previous process's sending session.
-    if (!p.edit().putBoolean("enabled", false).putBoolean("phase2_initialized", true).commit())
-      throw new IllegalStateException("Storage unavailable");
+    // Upgrade requires one explicit production start; subsequent process launches preserve intent.
+    if (!p.getBoolean("continuous_initialized", false)
+        && !p.edit()
+            .putBoolean("enabled", false)
+            .putBoolean("continuous_initialized", true)
+            .commit()) throw new IllegalStateException("Storage unavailable");
     GatewayJournal j = GatewayJournal.get(c);
     if (missing) j.attention("Journal missing; backend reconciliation required");
     if (!c.getSharedPreferences("pending_sends", 0).getAll().isEmpty())

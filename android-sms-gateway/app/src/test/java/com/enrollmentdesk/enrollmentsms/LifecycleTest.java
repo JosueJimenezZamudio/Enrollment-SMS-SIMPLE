@@ -15,7 +15,9 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 35, application = Application.class)
+@Config(
+    sdk = {34, 35},
+    application = Application.class)
 public class LifecycleTest {
   Context context;
 
@@ -116,6 +118,49 @@ public class LifecycleTest {
     var activity = Robolectric.buildActivity(MainActivity.class).setup();
     assertFalse(DispatchGate.running());
     activity.pause().stop().destroy();
+  }
+
+  @Test
+  public void processInitializationPreservesContinuousIntent() throws Exception {
+    GatewayConfig.initialize(context);
+    context
+        .getSharedPreferences(GatewayConfig.PREFS, 0)
+        .edit()
+        .putBoolean("enabled", true)
+        .putInt("bound_sms_sim", 2)
+        .commit();
+    GatewayConfig.initialize(context);
+    assertTrue(GatewayLifecycle.enabled(context));
+    assertEquals(2, GatewayLifecycle.boundSim(context));
+    assertFalse(DispatchGate.running());
+  }
+
+  @Test
+  public void explicitStopPersistsAcrossInitialization() throws Exception {
+    GatewayConfig.initialize(context);
+    context
+        .getSharedPreferences(GatewayConfig.PREFS, 0)
+        .edit()
+        .putBoolean("enabled", true)
+        .commit();
+    long owner = DispatchGate.start();
+    GatewayLifecycle.disable(context);
+    GatewayConfig.initialize(context);
+    assertFalse(GatewayLifecycle.enabled(context));
+    assertFalse(DispatchGate.valid(owner));
+    assertFalse(GatewayLifecycle.restore(context));
+  }
+
+  @Test
+  public void android15DoesNotRestoreDataSyncFromBoot() {
+    context
+        .getSharedPreferences(GatewayConfig.PREFS, 0)
+        .edit()
+        .putBoolean("enabled", true)
+        .commit();
+    if (android.os.Build.VERSION.SDK_INT >= 35) assertFalse(GatewayLifecycle.restore(context));
+    else assertTrue(GatewayLifecycle.restore(context));
+    assertFalse(DispatchGate.running());
   }
 
   @Test
